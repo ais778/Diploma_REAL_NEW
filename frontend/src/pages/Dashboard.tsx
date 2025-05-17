@@ -66,13 +66,13 @@ useEffect(() => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold text-center mb-6 text-indigo-600">
-        Сетевой трафик (реальное время)
+        Network traffic
       </h1>
 
       <div className="flex flex-wrap gap-4 mb-6 justify-center">
         <input
           type="text"
-          placeholder="Фильтр по IP"
+          placeholder="Filter by IP"
           value={ip}
           onChange={(e) => setIP(e.target.value)}
           className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -82,7 +82,7 @@ useEffect(() => {
           onChange={(e) => setProtocol(e.target.value)}
           className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">Все протоколы</option>
+          <option value="">Select protocol</option>
           <option value="TCP">TCP</option>
           <option value="UDP">UDP</option>
           <option value="ICMP">ICMP</option>

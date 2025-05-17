@@ -7,6 +7,7 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
+    Legend
 } from "recharts";
 
 type TrafficPacket = {
@@ -30,46 +31,41 @@ const TrafficGraph: React.FC = () => {
         const socket = new WebSocket("ws://127.0.0.1:8000/ws/traffic");
 
         socket.onopen = () => {
-            console.log("🟢 TrafficGraph WebSocket connected");
+            console.log("TrafficGraph WebSocket connected");
         };
 
         socket.onmessage = (event) => {
             try {
                 const packets: TrafficPacket[] = JSON.parse(event.data);
-                // Добавляем новые пакеты в буфер
                 packetsBuffer.current = packetsBuffer.current.concat(packets);
             } catch (err) {
-                console.error("❌ Ошибка парсинга данных WebSocket в графике:", err);
+                console.error("Ошибка парсинга данных WebSocket:", err);
             }
         };
 
         socket.onerror = (error) => {
-            console.error("❌ TrafficGraph WebSocket error:", error);
+            console.error("TrafficGraph WebSocket error:", error);
         };
 
         socket.onclose = () => {
-            console.warn("🔴 TrafficGraph WebSocket disconnected");
+            console.warn("TrafficGraph WebSocket disconnected");
         };
 
-        // Каждую секунду агрегируем буфер пакетов и обновляем график
         const intervalId = setInterval(() => {
             const now = new Date();
             const timeLabel = now.toLocaleTimeString();
 
             const buffer = packetsBuffer.current;
-            if (buffer.length === 0) return; // если пакетов нет - ничего не делаем
+            if (buffer.length === 0) return;
 
-            // Считаем количество пакетов и суммарный length
             const trafficCount = buffer.length;
             const speedSum = buffer.reduce((acc, pkt) => acc + pkt.length, 0);
 
-            // Добавляем точку на график, храним последние 20-30 точек
             setGraphData((prev) => {
                 const newData = [...prev, { time: timeLabel, traffic: trafficCount, speed: speedSum }];
-                return newData.slice(-30); // максимум 30 точек
+                return newData.slice(-30);
             });
 
-            // Очищаем буфер
             packetsBuffer.current = [];
         }, 1000);
 
@@ -80,16 +76,65 @@ const TrafficGraph: React.FC = () => {
     }, []);
 
     return (
-        <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={graphData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="traffic" stroke="#ff7300" name="Пакеты" />
-                <Line type="monotone" dataKey="speed" stroke="#387908" name="Суммарный размер" />
-            </LineChart>
-        </ResponsiveContainer>
+        <div className="space-y-10 px-2 sm:px-4 md:px-0">
+            {/* Первый график */}
+            <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                <h2 className="text-xl font-semibold mb-4 text-center text-indigo-700">Amount of packets</h2>
+                <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={graphData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="time"
+                            label={{ value: "Time", position: "insideBottom", offset: -5 }}
+                            tick={{ fontSize: 10 }}
+                        />
+                        <YAxis
+                            label={{ value: "Packets", angle: -90, position: "insideLeft" }}
+                            tick={{ fontSize: 10 }}
+                        />
+                        <Tooltip />
+                        <Legend verticalAlign="top" height={36} />
+                        <Line
+                            type="monotone"
+                            dataKey="traffic"
+                            stroke="#ff7300"
+                            name="Packets"
+                            dot={false}
+                            isAnimationActive={false}
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+
+            {/* Второй график */}
+            <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                <h2 className="text-xl font-semibold mb-4 text-center text-green-700">Суммарный размер трафика (байт)</h2>
+                <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={graphData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="time"
+                            label={{ value: "Time", position: "insideBottom", offset: -5 }}
+                            tick={{ fontSize: 10 }}
+                        />
+                        <YAxis
+                            label={{ value: "Bytes", angle: -90, position: "insideLeft" }}
+                            tick={{ fontSize: 10 }}
+                        />
+                        <Tooltip />
+                        <Legend verticalAlign="top" height={36} />
+                        <Line
+                            type="monotone"
+                            dataKey="speed"
+                            stroke="#387908"
+                            name="Size"
+                            dot={false}
+                            isAnimationActive={false}
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
     );
 };
 
