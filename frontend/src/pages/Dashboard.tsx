@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import TrafficTable from "../components/TrafficTable";
+import TrafficGraph from "../components/TrafficGraph";
 
 type Traffic = {
   id?: number;
@@ -88,7 +89,8 @@ useEffect(() => {
         </select>
       </div>
 
-      <TrafficTable traffic={filteredTraffic} />
+      <TrafficGraph />
+        <TrafficTable traffic={filteredTraffic} />
     </div>
   );
 };
