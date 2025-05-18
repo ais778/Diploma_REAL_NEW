@@ -4,23 +4,21 @@ from collections import defaultdict
 def optimize_packets(packets: List[Dict]) -> List[Dict]:
     print(f"🔍 Оптимизация {len(packets)} пакетов...")
 
-    # 1. Удаление дубликатов по src/dst/proto
+    # Удаляем дубликаты по src/dst/protocols
     seen = set()
     optimized = []
 
     for pkt in packets:
-        key = (pkt.get("src"), pkt.get("dst"), pkt.get("proto"))
-        if None in key:
-            continue  # пропускаем неполные
+        key = (pkt.get("src"), pkt.get("dst"), tuple(pkt.get("protocols", [])))
         if key not in seen:
             seen.add(key)
             optimized.append(pkt)
 
-    # 2. Подсчёт статистики по протоколам (можно вывести во фронт)
+    # Подсчёт статистики по протоколам
     proto_stats = defaultdict(int)
     for pkt in optimized:
-        proto = pkt.get("proto")
-        proto_stats[proto] += 1
+        for proto in pkt.get("protocols", []):
+            proto_stats[proto] += 1
 
     print("📊 Протоколы:", dict(proto_stats))
 

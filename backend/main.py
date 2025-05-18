@@ -71,22 +71,20 @@ from scapy.layers.inet import IP, TCP, UDP
 
 def packet_to_dict(pkt: Packet) -> dict:
     try:
-        if IP in pkt:
-            proto = pkt[IP].proto
-            proto_name = {
-                6: "TCP",
-                17: "UDP",
-                1: "ICMP"
-            }.get(proto, str(proto))
+        # Получаем все слои пакета
+        layers = []
+        current = pkt
+        while current:
+            layers.append(current.name)
+            current = current.payload
 
-            return {
-                "src": pkt[IP].src,
-                "dst": pkt[IP].dst,
-                "proto": proto_name,
-                "length": len(pkt)
-            }
-        else:
-            return None  # Нет IP-уровня
+        return {
+            "src": pkt[IP].src if IP in pkt else None,
+            "dst": pkt[IP].dst if IP in pkt else None,
+            "protocols": layers,  # Список всех протоколов в пакете
+            "length": len(pkt),
+            "summary": pkt.summary()  # Добавляем полное описание пакета
+        }
     except Exception as e:
-        print(f"❌ Ошибка при преобразовании пакета: {e}")
+        print(f"❌ Error converting packet: {e}")
         return None

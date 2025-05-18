@@ -3,96 +3,80 @@ import TrafficTable from "../components/TrafficTable";
 import TrafficGraph from "../components/TrafficGraph";
 
 type Traffic = {
-  id?: number;
-  src: string;
-  dst: string;
-  protocol: string;
-  length: number;
+    id?: number;
+    src: string;
+    dst: string;
+    protocol: string;
+    length: number;
 };
 
 const Dashboard: React.FC = () => {
-  const [traffic, setTraffic] = useState<Traffic[]>([]);
-  const [protocol, setProtocol] = useState<string>("");
-  const [ip, setIP] = useState<string>("");
-useEffect(() => {
-  console.log("🚀 Попытка подключения к WebSocket...");
+    const [traffic, setTraffic] = useState<Traffic[]>([]);
+    const [ip, setIP] = useState<string>("");
 
-  // const socket = new WebSocket("ws://localhost:8000/ws/traffic");
- const socket = new WebSocket("ws://127.0.0.1:8000/ws/traffic");
+    useEffect(() => {
+        console.log("🚀 Попытка подключения к WebSocket...");
 
-  socket.onopen = () => {
-    console.log("🟢 WebSocket connected");
-    console.log("🔎 Состояние:", socket.readyState); // 1 = OPEN
-  };
+        const socket = new WebSocket("ws://127.0.0.1:8000/ws/traffic");
 
-  socket.onmessage = (event) => {
-    console.log("📨 WebSocket message received", event.data);
-    try {
-      
-      const packets: Traffic[] = JSON.parse(event.data);
-      setTraffic((prev) => [...prev, ...packets]);
-    } catch (error) {
-      console.error("❌ Ошибка парсинга данных WebSocket:", error);
-      console.debug("📦 Исходные данные:", event.data);
-    }
-  };
+        socket.onopen = () => {
+            console.log("🟢 WebSocket connected");
+            console.log("🔎 Состояние:", socket.readyState);
+        };
 
-  socket.onerror = (error) => {
-    console.error("❌ WebSocket error!", error);
-    console.warn("🛑 Текущее состояние соединения:", socket.readyState); // 3 = CLOSED
-  };
+        socket.onmessage = (event) => {
+            console.log("📨 WebSocket message received", event.data);
+            try {
+                const packets: Traffic[] = JSON.parse(event.data);
+                setTraffic((prev) => [...prev, ...packets]);
+            } catch (error) {
+                console.error("❌ Ошибка парсинга данных WebSocket:", error);
+                console.debug("📦 Исходные данные:", event.data);
+            }
+        };
 
-  socket.onclose = (event) => {
-    console.warn("🔴 WebSocket disconnected");
-    console.log("🔍 Код закрытия:", event.code, "| Причина:", event.reason || "(не указана)");
-    console.log("🛑 Состояние соединения:", socket.readyState); // 3 = CLOSED
-  };
+        socket.onerror = (error) => {
+            console.error("❌ WebSocket error!", error);
+            console.warn("🛑 Текущее состояние соединения:", socket.readyState);
+        };
 
-  return () => {
-    console.log("⛔ Закрытие WebSocket при размонтировании компонента");
-    socket.close();
-  };
-}, []);
+        socket.onclose = (event) => {
+            console.warn("🔴 WebSocket disconnected");
+            console.log("🔍 Код закрытия:", event.code, "| Причина:", event.reason || "(не указана)");
+            console.log("🛑 Состояние соединения:", socket.readyState);
+        };
 
-  // Фильтрация по IP и протоколу
-  const filteredTraffic = traffic.filter((pkt) => {
-    const matchesIP =
-      ip === "" || pkt.src.includes(ip) || pkt.dst.includes(ip);
-    const matchesProtocol =
-      protocol === "" || pkt.protocol.toUpperCase() === protocol;
-    return matchesIP && matchesProtocol;
-  });
+        return () => {
+            console.log("⛔ Закрытие WebSocket при размонтировании компонента");
+            socket.close();
+        };
+    }, []);
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold text-center mb-6 text-indigo-600">
-        Network traffic
-      </h1>
+    const filteredTraffic = traffic.filter((pkt) => {
+        return ip === "" || pkt.src.includes(ip) || pkt.dst.includes(ip);
+    });
 
-      <div className="flex flex-wrap gap-4 mb-6 justify-center">
-        <input
-          type="text"
-          placeholder="Filter by IP"
-          value={ip}
-          onChange={(e) => setIP(e.target.value)}
-          className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-        <select
-          value={protocol}
-          onChange={(e) => setProtocol(e.target.value)}
-          className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Select protocol</option>
-          <option value="TCP">TCP</option>
-          <option value="UDP">UDP</option>
-          <option value="ICMP">ICMP</option>
-        </select>
-      </div>
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+            <h1 className="text-3xl font-bold text-center mb-6 text-indigo-600">
+                Network traffic
+            </h1>
 
-      <TrafficGraph />
-        <TrafficTable traffic={filteredTraffic} />
-    </div>
-  );
+            <div className="flex flex-wrap gap-4 mb-6 justify-center">
+                <input
+                    type="text"
+                    placeholder="Filter by IP"
+                    value={ip}
+                    onChange={(e) => setIP(e.target.value)}
+                    className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+            </div>
+
+            <TrafficGraph />
+            <br/>
+            <TrafficTable traffic={filteredTraffic} />
+        </div>
+    );
 };
 
 export default Dashboard;
