@@ -9,6 +9,8 @@ import {
   FormControlLabel,
 } from '@mui/material';
 import {
+  AreaChart,
+  Area,
   LineChart,
   Line,
   XAxis,
@@ -22,13 +24,44 @@ import {
   Legend,
 } from 'recharts';
 import { useNetworkStore } from '../store/networkStore';
-import { formatDistance } from 'date-fns';
+import { format } from 'date-fns';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export const MetricsDashboard: React.FC = () => {
   const { metrics, packets } = useNetworkStore();
   const [showComparison, setShowComparison] = React.useState(true);
+  const [trendData, setTrendData] = React.useState<any[]>([]);
+  const intervalMs = 5000;
+
+  React.useEffect(() => {
+    if (!packets || packets.length === 0) return;
+    const buckets = {};
+    packets.forEach(packet => {
+      const t = new Date(packet.timestamp).getTime();
+      const bucket = Math.floor(t / intervalMs) * intervalMs;
+      if (!buckets[bucket]) {
+        buckets[bucket] = { count: 0, total: 0, optimizedTotal: 0 };
+      }
+      buckets[bucket].count += 1;
+      buckets[bucket].total += packet.length;
+      buckets[bucket].optimizedTotal += packet.optimization ? packet.length * 0.8 : packet.length;
+    });
+    const latestBucket = Object.entries(buckets).sort(([a], [b]) => Number(b) - Number(a))[0];
+    if (latestBucket) {
+      const [bucket, data] = latestBucket;
+      const newPoint = {
+        name: format(new Date(Number(bucket)), 'HH:mm:ss'),
+        originalSize: data.count ? data.total / data.count : 0,
+        optimizedSize: data.count ? data.optimizedTotal / data.count : 0,
+      };
+      setTrendData(prev => {
+        if (prev.length > 0 && prev[prev.length - 1].name === newPoint.name) return prev;
+        const updated = [...prev, newPoint];
+        return updated.slice(-50);
+      });
+    }
+  }, [packets]);
 
   if (!metrics) {
     return (
@@ -37,14 +70,6 @@ export const MetricsDashboard: React.FC = () => {
       </Box>
     );
   }
-
-  // Prepare data for comparison
-  const packetSizeData = packets.map((packet) => ({
-    name: formatDistance(new Date(packet.timestamp), new Date(), { addSuffix: true }),
-    originalSize: packet.length,
-    optimizedSize: packet.optimization ? packet.length * 0.8 : packet.length, // Example optimization factor
-    throttled: packet.throttled,
-  }));
 
   const latencyData = [
     { 
@@ -70,6 +95,10 @@ export const MetricsDashboard: React.FC = () => {
     original: bytes,
     optimized: bytes * 0.85, // Example optimization factor
   }));
+
+  // Y-axis amplitude logic
+  const maxPacketSize = Math.max(0, ...trendData.map(d => d.originalSize || 0), ...trendData.map(d => d.optimizedSize || 0));
+  const yAxisMax = maxPacketSize > 1000 ? 1500 : 1000;
 
   return (
     <Box p={3}>
@@ -158,7 +187,7 @@ export const MetricsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Packet Size Trend */}
+        {/* Packet Size Trend (Area Chart with Moving Average) */}
         <Grid item xs={12}>
           <Card>
             <CardContent>
@@ -167,30 +196,41 @@ export const MetricsDashboard: React.FC = () => {
               </Typography>
               <Box height={300}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={packetSizeData}>
+                  <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorOriginal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorOptimized" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#82ca9d" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
-                    <YAxis />
+                    <YAxis domain={[0, yAxisMax]} />
                     <Tooltip />
                     <Legend />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="originalSize"
                       stroke="#8884d8"
-                      name="Original Size"
-                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorOriginal)"
+                      name="Original Size (Moving Avg)"
                     />
                     {showComparison && (
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="optimizedSize"
                         stroke="#82ca9d"
-                        name="Optimized Size"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
+                        fillOpacity={1}
+                        fill="url(#colorOptimized)"
+                        name="Optimized Size (Moving Avg)"
                       />
                     )}
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </Box>
             </CardContent>

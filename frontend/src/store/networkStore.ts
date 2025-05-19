@@ -15,6 +15,7 @@ interface NetworkStore {
   setMetrics: (metrics: NetworkMetrics) => void;
   setQoSRules: (rules: QoSRule[]) => void;
   addQoSRule: (rule: QoSRule) => void;
+  removeQoSRule: (rule: QoSRule) => void;
   
   // Filters
   protocolFilter: string | null;
@@ -44,6 +45,15 @@ export const useNetworkStore = create<NetworkStore>((set: SetState) => ({
   addQoSRule: (rule: QoSRule) =>
     set((state: NetworkStore) => ({
       qosRules: [...state.qosRules, rule]
+    })),
+  removeQoSRule: (rule: QoSRule) =>
+    set((state: NetworkStore) => ({
+      qosRules: state.qosRules.filter(
+        r =>
+          r.protocol !== rule.protocol ||
+          r.priority !== rule.priority ||
+          r.bandwidth_limit !== rule.bandwidth_limit
+      )
     })),
   setProtocolFilter: (protocol: string | null) => set({ protocolFilter: protocol }),
 })); 

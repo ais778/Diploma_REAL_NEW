@@ -15,11 +15,15 @@ import {
   Paper,
   Alert,
 } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
 import { useNetworkStore } from '../store/networkStore';
 import { networkApi, QoSRule } from '../api/networkApi';
+import DeleteIcon from '@mui/icons-material/Delete';
+
+const PROTOCOL_OPTIONS = ['TCP', 'UDP', 'ICMP', 'HTTP', 'HTTPS', 'DNS', 'ARP', 'Other'];
 
 export const QoSConfig: React.FC = () => {
-  const { qosRules, addQoSRule } = useNetworkStore();
+  const { qosRules, addQoSRule, removeQoSRule } = useNetworkStore();
   const [error, setError] = useState<string | null>(null);
   const [newRule, setNewRule] = useState<Partial<QoSRule>>({
     protocol: '',
@@ -56,6 +60,17 @@ export const QoSConfig: React.FC = () => {
     }
   };
 
+  // Add a function to handle rule deletion
+  const handleDeleteRule = async (rule: QoSRule) => {
+    try {
+      // Optionally, call backend to remove rule if supported
+      // await networkApi.deleteQoSRule(rule); // Uncomment if backend supports
+      removeQoSRule(rule);
+    } catch (err) {
+      setError('Failed to remove QoS rule');
+    }
+  };
+
   return (
     <Box p={3}>
       <Typography variant="h5" gutterBottom>
@@ -74,14 +89,22 @@ export const QoSConfig: React.FC = () => {
             Add New QoS Rule
           </Typography>
           <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              label="Protocol"
-              value={newRule.protocol}
-              onChange={(e) => setNewRule({ ...newRule, protocol: e.target.value })}
-              fullWidth
-              margin="normal"
-              required
-              placeholder="e.g., TCP, UDP, ICMP"
+            <Autocomplete
+              options={PROTOCOL_OPTIONS}
+              freeSolo
+              value={newRule.protocol || ''}
+              onChange={(_, value) => setNewRule({ ...newRule, protocol: value || '' })}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Protocol"
+                  fullWidth
+                  margin="normal"
+                  required
+                  placeholder="e.g., TCP, UDP, ICMP"
+                  inputProps={{ ...params.inputProps, tabIndex: 0 }}
+                />
+              )}
             />
             <TextField
               label="Priority"
@@ -91,8 +114,8 @@ export const QoSConfig: React.FC = () => {
               fullWidth
               margin="normal"
               required
-              inputProps={{ min: 0, max: 10 }}
-              helperText="0 (lowest) to 10 (highest)"
+              inputProps={{ min: 0, max: 10, step: 1 }}
+              helperText="0 (lowest) to 10 (highest) — use keyboard arrows or type"
             />
             <TextField
               label="Bandwidth Limit (bytes/s)"
@@ -133,6 +156,7 @@ export const QoSConfig: React.FC = () => {
                   <TableCell>Protocol</TableCell>
                   <TableCell align="right">Priority</TableCell>
                   <TableCell align="right">Bandwidth Limit</TableCell>
+                  <TableCell align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -145,11 +169,16 @@ export const QoSConfig: React.FC = () => {
                         ? `${rule.bandwidth_limit} bytes/s`
                         : 'No limit'}
                     </TableCell>
+                    <TableCell align="center">
+                      <Button color="error" onClick={() => handleDeleteRule(rule)}>
+                        <DeleteIcon />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {qosRules.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} align="center">
+                    <TableCell colSpan={4} align="center">
                       No QoS rules configured
                     </TableCell>
                   </TableRow>

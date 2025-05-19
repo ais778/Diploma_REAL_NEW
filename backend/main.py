@@ -12,6 +12,9 @@ from datetime import datetime
 import json
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel
+import sys
+from scapy.all import IFACES
+import time
 
 # Define request model for QoS rules
 class QoSRuleRequest(BaseModel):
@@ -39,6 +42,9 @@ optimizer = TrafficOptimizer()
 metrics_collector = NetworkMetricsCollector()
 active_connections: Set[WebSocket] = set()
 raw_packets = []
+packet_buffer = []
+last_send_time = time.time()
+SEND_INTERVAL = 5  # seconds
 
 # QoS configuration endpoints
 @app.post("/api/qos/rules")
@@ -107,7 +113,7 @@ def packet_to_dict(pkt: Packet) -> dict:
             packet_dict["tcp_info"] = {
                 "sport": pkt[TCP].sport,
                 "dport": pkt[TCP].dport,
-                "flags": pkt[TCP].flags,
+                "flags": str(pkt[TCP].flags),
                 "window": pkt[TCP].window
             }
 
@@ -130,54 +136,49 @@ async def traffic_ws(websocket: WebSocket):
     await websocket.accept()
     active_connections.add(websocket)
     print(f"📡 WebSocket client connected: {websocket.client}")
-    
+
     try:
         while True:
+            await asyncio.sleep(1)
             try:
-                await asyncio.sleep(1)
+                global last_send_time
+                now = time.time()
+                # Collect packets into buffer
                 if raw_packets:
-                    try:
-                        print(f"⚙️ Processing {len(raw_packets)} packets...")
-                        
-                        # Convert packets to dictionary format
-                        packet_dicts = [packet_to_dict(pkt) for pkt in raw_packets]
-                        packet_dicts = [pkt for pkt in packet_dicts if pkt]
-                        
-                        # Apply optimization
-                        optimized_packets = optimize_packets(packet_dicts)
-                        
-                        # Record metrics
-                        for packet in optimized_packets:
-                            metrics_collector.record_packet(packet)
-                        
-                        # Get current metrics
-                        metrics = await get_current_metrics()
-                        
-                        # Prepare response
-                        response = {
-                            "packets": optimized_packets,
-                            "metrics": metrics,
-                            "timestamp": datetime.now().isoformat()
-                        }
-                        
-                        if websocket in active_connections:  # Check if still connected
-                            print(f"📤 Sending data to client...")
-                            await websocket.send_json(response)
-                        raw_packets.clear()
-                        
-                    except Exception as e:
-                        print(f"❌ Error processing packets: {e}")
-                        
-            except asyncio.CancelledError:
+                    packet_buffer.extend(raw_packets)
+                    raw_packets.clear()
+                # Every SEND_INTERVAL seconds, process and send the batch
+                if now - last_send_time >= SEND_INTERVAL and packet_buffer:
+                    print(f"⚙️ Processing {len(packet_buffer)} packets (batch) ...")
+                    packet_dicts = [packet_to_dict(pkt) for pkt in packet_buffer]
+                    packet_dicts = [pkt for pkt in packet_dicts if pkt]
+                    optimized_packets = optimize_packets(packet_dicts)
+                    for packet in optimized_packets:
+                        metrics_collector.record_packet(packet)
+                    metrics = await get_current_metrics()
+                    response = {
+                        "packets": optimized_packets,
+                        "metrics": metrics,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    await websocket.send_json(response)
+                    packet_buffer.clear()
+                    last_send_time = now
+                else:
+                    # Send empty packets to keep frontend alive
+                    metrics = await get_current_metrics()
+                    response = {
+                        "packets": [],
+                        "metrics": metrics,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    await websocket.send_json(response)
+            except WebSocketDisconnect:
+                print(f"❌ Client disconnected normally: {websocket.client}")
                 break
             except Exception as e:
                 print(f"⚠️ WebSocket loop error: {e}")
                 break
-                
-    except WebSocketDisconnect:
-        print(f"❌ Client disconnected normally: {websocket.client}")
-    except Exception as e:
-        print(f"⚠️ WebSocket error: {e}")
     finally:
         active_connections.discard(websocket)
         print(f"❌ Client disconnected: {websocket.client}")
@@ -195,6 +196,22 @@ async def shutdown_event():
     active_connections.clear()
     print("✅ Server shutdown complete")
 
+def choose_interface():
+    print("Available network interfaces:")
+    iface_list = []
+    for i, iface in enumerate(IFACES.values()):
+        print(f"[{i}] {iface.name} - {iface.description}")
+        iface_list.append(iface.name)
+    while True:
+        try:
+            idx = int(input("Select interface number to sniff (default 0): ") or 0)
+            if 0 <= idx < len(iface_list):
+                return iface_list[idx]
+            else:
+                print(f"Invalid selection. Enter a number between 0 and {len(iface_list)-1}.")
+        except Exception as e:
+            print(f"Invalid input: {e}")
+
 def start_sniff():
     """Start packet sniffer in background thread"""
     print("🚀 Starting network sniffer...")
@@ -204,7 +221,9 @@ def start_sniff():
         raw_packets.append(pkt)
 
     try:
-        start_sniffing(packet_callback)
+        interface = choose_interface()
+        print(f"Using interface: {interface}")
+        start_sniffing(packet_callback, interface=interface)
     except Exception as e:
         print(f"❌ Sniffer error: {e}")
 
