@@ -145,6 +145,11 @@ class TrafficOptimizer:
             "bandwidth_limit": bandwidth_limit
         }
     
+    def remove_qos_rule(self, protocol: str):
+        """Remove QoS rule for a specific protocol"""
+        if protocol in self.qos_rules:
+            del self.qos_rules[protocol]
+    
     def analyze_traffic_patterns(self, packets: List[Dict]) -> Dict:
         """Analyze traffic patterns using machine learning"""
         if not packets:

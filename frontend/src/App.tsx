@@ -63,13 +63,11 @@ export const App: React.FC = () => {
             aria-label="dashboard tabs"
           >
             <Tab label="Metrics Dashboard" />
-            <Tab label="QoS Configuration" />
           </Tabs>
         </Box>
 
         <Container maxWidth="xl">
           {currentTab === 0 && <MetricsDashboard />}
-          {currentTab === 1 && <QoSConfig />}
         </Container>
       </Box>
     </ThemeProvider>

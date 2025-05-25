@@ -1,6 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = "http://localhost:8000";
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 3000; // 3 seconds
 
 export interface QoSRule {
   protocol: string;
@@ -58,37 +60,134 @@ export interface Packet {
   };
 }
 
-export const networkApi = {
+class NetworkApi {
+  private ws: WebSocket | null = null;
+  private reconnectAttempts = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private messageHandlers: ((data: {
+    packets: Packet[];
+    metrics: NetworkMetrics;
+  }) => void)[] = [];
+
+  constructor() {
+    // Initialize axios with default config
+    axios.defaults.baseURL = BASE_URL;
+    axios.defaults.timeout = 5000;
+    axios.defaults.headers.common["Content-Type"] = "application/json";
+  }
+
   // QoS Rules
-  setQoSRule: async (rule: QoSRule) => {
-    const response = await axios.post(`${BASE_URL}/api/qos/rules`, rule);
-    return response.data;
-  },
+  async setQoSRule(rule: QoSRule): Promise<any> {
+    try {
+      const response = await axios.post("/api/qos/rules", rule);
+      return response.data;
+    } catch (error) {
+      console.error("Error setting QoS rule:", error);
+      throw error;
+    }
+  }
+
+  async deleteQoSRule(protocol: string): Promise<any> {
+    try {
+      const response = await axios.delete(`/api/qos/rules/${protocol}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error deleting QoS rule:", error);
+      throw error;
+    }
+  }
 
   // Metrics
-  getCurrentMetrics: async () => {
-    const response = await axios.get<NetworkMetrics>(`${BASE_URL}/api/metrics/current`);
-    return response.data;
-  },
+  async getCurrentMetrics(): Promise<NetworkMetrics> {
+    try {
+      const response = await axios.get<NetworkMetrics>("/api/metrics/current");
+      return response.data;
+    } catch (error) {
+      console.error("Error getting metrics:", error);
+      throw error;
+    }
+  }
 
-  clearMetricsHistory: async () => {
-    const response = await axios.post(`${BASE_URL}/api/metrics/clear`);
-    return response.data;
-  },
+  async clearMetricsHistory(): Promise<any> {
+    try {
+      const response = await axios.post("/api/metrics/clear");
+      return response.data;
+    } catch (error) {
+      console.error("Error clearing metrics:", error);
+      throw error;
+    }
+  }
 
   // WebSocket connection for real-time updates
-  connectWebSocket: (onMessage: (data: { packets: Packet[], metrics: NetworkMetrics }) => void) => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/traffic`);
+  connectWebSocket(
+    onMessage: (data: { packets: Packet[]; metrics: NetworkMetrics }) => void
+  ) {
+    this.messageHandlers.push(onMessage);
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      onMessage(data);
+    if (this.ws) {
+      return this.ws;
+    }
+
+    this.ws = new WebSocket(`ws://localhost:8000/ws/traffic`);
+
+    this.ws.onopen = () => {
+      console.log("WebSocket connected");
+      this.reconnectAttempts = 0;
     };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.messageHandlers.forEach((handler) => handler(data));
+      } catch (error) {
+        console.error("Error parsing WebSocket message:", error);
+      }
     };
 
-    return ws;
+    this.ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    this.ws.onclose = () => {
+      console.log("WebSocket closed");
+      this.ws = null;
+      this.attemptReconnect();
+    };
+
+    return this.ws;
   }
-}; 
+
+  private attemptReconnect() {
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error("Max reconnection attempts reached");
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectAttempts++;
+      console.log(
+        `Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
+      );
+      this.connectWebSocket(this.messageHandlers[0]);
+    }, RECONNECT_DELAY);
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.messageHandlers = [];
+    this.reconnectAttempts = 0;
+  }
+}
+
+export const networkApi = new NetworkApi();

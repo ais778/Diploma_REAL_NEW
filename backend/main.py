@@ -44,7 +44,8 @@ active_connections: Set[WebSocket] = set()
 raw_packets = []
 packet_buffer = []
 last_send_time = time.time()
-SEND_INTERVAL = 5  # seconds
+SEND_INTERVAL = 2.0  # seconds
+MAX_PACKETS_PER_BATCH = 50  # Maximum number of packets to send in one batch
 
 # QoS configuration endpoints
 @app.post("/api/qos/rules")
@@ -60,6 +61,18 @@ async def set_qos_rule(rule: QoSRuleRequest):
                 "priority": rule.priority,
                 "bandwidth_limit": rule.bandwidth_limit
             }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/qos/rules/{protocol}")
+async def delete_qos_rule(protocol: str):
+    """Delete QoS rule for a specific protocol"""
+    try:
+        optimizer.remove_qos_rule(protocol)
+        return {
+            "message": f"QoS rule deleted for {protocol}",
+            "status": "success"
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -150,15 +163,35 @@ async def traffic_ws(websocket: WebSocket):
                 # Every SEND_INTERVAL seconds, process and send the batch
                 if now - last_send_time >= SEND_INTERVAL and packet_buffer:
                     print(f"⚙️ Processing {len(packet_buffer)} packets (batch) ...")
-                    packet_dicts = [packet_to_dict(pkt) for pkt in packet_buffer]
+                    # Limit the number of packets to process
+                    packets_to_process = packet_buffer[-MAX_PACKETS_PER_BATCH:]
+                    packet_dicts = [packet_to_dict(pkt) for pkt in packets_to_process]
                     packet_dicts = [pkt for pkt in packet_dicts if pkt]
+                    
+                    # Aggregate packets by protocol
+                    protocol_aggregation = {}
+                    for pkt in packet_dicts:
+                        protocol = pkt.get("protocols", ["Unknown"])[0]
+                        if protocol not in protocol_aggregation:
+                            protocol_aggregation[protocol] = {
+                                "count": 0,
+                                "total_size": 0,
+                                "packets": []
+                            }
+                        protocol_aggregation[protocol]["count"] += 1
+                        protocol_aggregation[protocol]["total_size"] += pkt.get("length", 0)
+                        protocol_aggregation[protocol]["packets"].append(pkt)
+                    
+                    # Create aggregated response
                     optimized_packets = optimize_packets(packet_dicts)
                     for packet in optimized_packets:
                         metrics_collector.record_packet(packet)
                     metrics = await get_current_metrics()
+                    
                     response = {
-                        "packets": optimized_packets,
+                        "packets": optimized_packets[-MAX_PACKETS_PER_BATCH:],  # Limit packets in response
                         "metrics": metrics,
+                        "aggregation": protocol_aggregation,
                         "timestamp": datetime.now().isoformat()
                     }
                     await websocket.send_json(response)
