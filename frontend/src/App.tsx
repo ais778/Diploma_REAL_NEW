@@ -12,7 +12,6 @@ import {
   Tabs,
 } from '@mui/material';
 import { MetricsDashboard } from './components/MetricsDashboard';
-import { QoSConfig } from './components/QoSConfig';
 import { useNetworkStore } from './store/networkStore';
 import { networkApi } from './api/networkApi';
 
