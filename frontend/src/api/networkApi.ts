@@ -1,6 +1,7 @@
 import axios from "axios";
-
-const BASE_URL = "http://localhost:8000";
+import api from "./axios"; // вместо import axios from "axios";
+const BASE_URL = api.defaults.baseURL; // можно убрать константу
+// const BASE_URL = "http://localhost:8000";
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 3000; // 3 seconds
 
@@ -62,8 +63,10 @@ export interface Packet {
 
 class NetworkApi {
   private ws: WebSocket | null = null;
+  private listeners: Array<(data: any) => void> = [];
   private reconnectAttempts = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private maxReconnectAttempts = 5;
+  private reconnectTimeout = 1000; // 1 second
   private messageHandlers: ((data: {
     packets: Packet[];
     metrics: NetworkMetrics;
@@ -128,65 +131,84 @@ class NetworkApi {
       return this.ws;
     }
 
-    this.ws = new WebSocket(`ws://localhost:8000/ws/traffic`);
-
-    this.ws.onopen = () => {
-      console.log("WebSocket connected");
-      this.reconnectAttempts = 0;
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.messageHandlers.forEach((handler) => handler(data));
-      } catch (error) {
-        console.error("Error parsing WebSocket message:", error);
-      }
-    };
-
-    this.ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
-
-    this.ws.onclose = () => {
-      console.log("WebSocket closed");
-      this.ws = null;
-      this.attemptReconnect();
-    };
+    this.subscribe(onMessage);
 
     return this.ws;
   }
 
-  private attemptReconnect() {
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error("Max reconnection attempts reached");
-      return;
+  subscribe(fn: (data: any) => void) {
+    this.listeners.push(fn);
+    if (!this.ws) {
+      this.initWebSocket();
     }
-
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectAttempts++;
-      console.log(
-        `Attempting to reconnect (${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
-      );
-      this.connectWebSocket(this.messageHandlers[0]);
-    }, RECONNECT_DELAY);
+    return () => {
+      this.listeners = this.listeners.filter((listener) => listener !== fn);
+      if (this.listeners.length === 0) {
+        this.closeWebSocket();
+      }
+    };
   }
 
-  disconnect() {
+  private initWebSocket() {
+    try {
+      const wsUrl = `${api.defaults.baseURL!.replace("http", "ws")}/ws/traffic`;
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        console.log("WebSocket connection established");
+        this.reconnectAttempts = 0;
+      };
+
+      this.ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          this.listeners.forEach((cb) => cb(data));
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+        }
+      };
+
+      this.ws.onclose = () => {
+        console.log("WebSocket connection closed");
+        this.handleReconnect();
+      };
+
+      this.ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        this.handleReconnect();
+      };
+    } catch (error) {
+      console.error("Error initializing WebSocket:", error);
+      this.handleReconnect();
+    }
+  }
+
+  private handleReconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      console.log(
+        `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
+      );
+      setTimeout(
+        () => this.initWebSocket(),
+        this.reconnectTimeout * this.reconnectAttempts
+      );
+    } else {
+      console.error("Max reconnection attempts reached");
+    }
+  }
+
+  private closeWebSocket() {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+  }
+
+  disconnect() {
     this.messageHandlers = [];
     this.reconnectAttempts = 0;
+    this.closeWebSocket();
   }
 }
 

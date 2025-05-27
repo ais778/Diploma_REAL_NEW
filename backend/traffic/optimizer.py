@@ -1,11 +1,12 @@
 from typing import List, Dict
-from collections import defaultdict
+from collections import defaultdict, deque
 import time
 from scapy.all import IP, TCP, UDP
 import queue
 import numpy as np
 from sklearn.cluster import KMeans
 from datetime import datetime
+import asyncio
 
 def optimize_packets(packets: List[Dict]) -> List[Dict]:
     """Main optimization function"""
@@ -39,7 +40,23 @@ class TrafficOptimizer:
         self.last_sent_time = {}  # IP -> last packet sent time
         self.qos_rules = defaultdict(lambda: {"priority": 0, "bandwidth_limit": None})
         self.traffic_history = []
-        
+        self.queues: Dict[int, deque] = defaultdict(deque)  # приоритет → очередь пакетов
+
+    def apply_traffic_shaping(self, packets):
+        for pkt in packets:
+            # Get protocol from packet
+            protocol = pkt.get("protocols", ["Unknown"])[0]
+            prio = self.qos_rules[protocol]['priority']
+            self.queues[prio].append(pkt)
+
+    async def scheduler(self):
+        while True:
+            for prio in sorted(self.queues.keys(), reverse=True):
+                if self.queues[prio]:
+                    pkt = self.queues[prio].popleft()
+                    yield pkt
+            await asyncio.sleep(0)
+            
     def optimize_traffic(self, packet, recommendations: Dict) -> bool:
         """
         Apply optimization strategies based on recommendations.

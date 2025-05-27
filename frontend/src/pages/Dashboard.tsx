@@ -25,14 +25,9 @@ const Dashboard: React.FC = () => {
         };
 
         socket.onmessage = (event) => {
-            console.log("📨 WebSocket message received", event.data);
-            try {
-                const packets: Traffic[] = JSON.parse(event.data);
-                setTraffic((prev) => [...prev, ...packets]);
-            } catch (error) {
-                console.error("❌ Ошибка парсинга данных WebSocket:", error);
-                console.debug("📦 Исходные данные:", event.data);
-            }
+            const payload = JSON.parse(event.data) as { packets: Traffic[]; metrics: any };
+            setTraffic((prev) => [...prev, ...payload.packets]);
+            // Если нужно, можно сохранить metrics в Zustand или React-state
         };
 
         socket.onerror = (error) => {
