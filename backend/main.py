@@ -17,6 +17,11 @@ from scapy.all import IFACES
 import time
 
 # Define request model for QoS rules
+class QoSRule(BaseModel):
+    protocol: str
+    priority: int
+    bandwidth_limit: Optional[float] = None
+    
 class QoSRuleRequest(BaseModel):
     protocol: str
     priority: int
@@ -31,7 +36,7 @@ app.mount("/metrics", metrics_app)
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,6 +53,32 @@ SEND_INTERVAL = 2.0  # seconds
 MAX_PACKETS_PER_BATCH = 50  # Maximum number of packets to send in one batch
 
 # QoS configuration endpoints
+@app.get("/api/qos/rules", response_model=List[QoSRule])
+async def get_qos_rules():
+    try:
+        print("QOS_RULES:", optimizer.get_all_qos_rules())  # Вставь сюда
+        rules = []
+        for protocol, rule in optimizer.get_all_qos_rules().items():
+            priority = rule.get("priority", 0)
+            bandwidth_limit = rule.get("bandwidth_limit")
+            try:
+                priority = int(priority)
+            except Exception:
+                priority = 0
+            try:
+                bandwidth_limit = float(bandwidth_limit) if bandwidth_limit is not None else None
+            except Exception:
+                bandwidth_limit = None
+
+            rules.append(QoSRule(protocol=protocol, priority=priority, bandwidth_limit=bandwidth_limit))
+        return rules
+    except Exception as e:
+        print("ERROR in get_qos_rules:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    
+
+    
 @app.post("/api/qos/rules")
 async def set_qos_rule(rule: QoSRuleRequest):
     """Set QoS rules for a specific protocol"""

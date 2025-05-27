@@ -34,11 +34,13 @@ def optimize_packets(packets: List[Dict]) -> List[Dict]:
     return packets
 
 class TrafficOptimizer:
+    
     def __init__(self):
         self.rate_limits = {}  # IP -> rate limit
         self.packet_queues = {}  # IP -> Queue
         self.last_sent_time = {}  # IP -> last packet sent time
         self.qos_rules = defaultdict(lambda: {"priority": 0, "bandwidth_limit": None})
+        
         self.traffic_history = []
         self.queues: Dict[int, deque] = defaultdict(deque)  # приоритет → очередь пакетов
 
@@ -154,6 +156,9 @@ class TrafficOptimizer:
                     break
 
         return packets_to_send
+    
+    def get_all_qos_rules(self):
+         return self.qos_rules
 
     def set_qos_rule(self, protocol: str, priority: int, bandwidth_limit: float = None):
         """Set QoS rules for specific protocols"""

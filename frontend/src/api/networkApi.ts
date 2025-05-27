@@ -80,6 +80,16 @@ class NetworkApi {
   }
 
   // QoS Rules
+  async getQoSRules(): Promise<QoSRule[]> {
+    try {
+      const response = await axios.get<QoSRule[]>("/api/qos/rules");
+      return response.data;
+    } catch (error) {
+      console.error("Error getting QoS rules:", error);
+      throw error;
+    }
+  }
+
   async setQoSRule(rule: QoSRule): Promise<any> {
     try {
       const response = await axios.post("/api/qos/rules", rule);

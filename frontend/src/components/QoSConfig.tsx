@@ -1,4 +1,3 @@
-// src/components/QoSConfig.tsx
 import React from "react";
 import {
   Accordion,
@@ -13,18 +12,12 @@ import {
   MenuItem,
   TextField,
   Button,
-  Chip,
-  Switch,
-  FormControlLabel,
-  IconButton,
   Snackbar,
   Alert,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import WarningIcon from "@mui/icons-material/Warning";
-import CloseIcon from "@mui/icons-material/Close";
 import { useNetworkStore } from "../store/networkStore";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "DNS"];
 
@@ -37,9 +30,12 @@ const getPriorityColor = (p: number) => {
 const QoSConfig: React.FC = () => {
   const setQoSRule = useNetworkStore((s) => s.setQoSRule);
   const qosRules = useNetworkStore((s) => s.qosRules);
+  const refreshQoSRules = useNetworkStore((s) => s.refreshQoSRules);
   const [selectedProtocol, setSelectedProtocol] = React.useState("TCP");
   const [priority, setPriority] = React.useState(1);
   const [bandwidthLimit, setBandwidthLimit] = React.useState<number | "">("");
+  const [loading, setLoading] = React.useState(false);
+
   const [snackbar, setSnackbar] = React.useState<{
     open: boolean;
     message: string;
@@ -62,29 +58,23 @@ const QoSConfig: React.FC = () => {
     }
   }, [selectedProtocol, qosRules]);
 
-  const handleApply = async () => {
-    try {
-      await setQoSRule(
-        selectedProtocol,
-        priority,
-        bandwidthLimit === "" ? null : bandwidthLimit
-      );
-      setSnackbar({
-        open: true,
-        message: "Rule applied successfully",
-        severity: "success",
-      });
-    } catch (error) {
-      console.error("Failed to apply rule:", error);
-      setSnackbar({
-        open: true,
-        message: "Failed to apply rule",
-        severity: "error",
-      });
-    }
-  };
+    const handleApply = async () => {
+        await new Promise((r) => setTimeout(r, 500)); // задержка 0.5 сек
+        setLoading(true);
+        try {
+            console.log("SelectedProtocol:", selectedProtocol, "Priority:", priority, "BandwidthLimit:", bandwidthLimit);
+            await setQoSRule(selectedProtocol, priority, bandwidthLimit === "" ? null : bandwidthLimit);
+            await refreshQoSRules();
+            setSnackbar({ open: true, message: "Rule applied successfully", severity: "success" });
+        } catch (e) {
+            setSnackbar({ open: true, message: "Failed to apply rule", severity: "error" });
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
+
+    return (
     <>
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -142,20 +132,24 @@ const QoSConfig: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12}>
-              <Button
-                variant="contained"
-                fullWidth
-                onClick={handleApply}
-                color={
-                  qosRules.some((r) => r.protocol === selectedProtocol)
-                    ? "secondary"
-                    : "primary"
-                }
-              >
-                {qosRules.some((r) => r.protocol === selectedProtocol)
-                  ? "Update Rule"
-                  : "Create Rule"}
-              </Button>
+                <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={handleApply}
+                    color={
+                        qosRules.some((r) => r.protocol === selectedProtocol)
+                            ? "secondary"
+                            : "primary"
+                    }
+                    disabled={loading}
+                    startIcon={loading ? <CircularProgress color="inherit" size={20} /> : null}
+                >
+                    {loading
+                        ? "Applying..."
+                        : qosRules.some((r) => r.protocol === selectedProtocol)
+                            ? "Update Rule"
+                            : "Create Rule"}
+                </Button>
             </Grid>
           </Grid>
         </AccordionDetails>

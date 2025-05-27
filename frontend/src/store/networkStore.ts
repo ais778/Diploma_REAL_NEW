@@ -28,6 +28,8 @@ interface NetworkStore {
       priority: number | null,
       bandwidthLimit: number | null
   ) => Promise<void>;
+  refreshQoSRules: () => Promise<void>;
+
 }
 
 type SetState = (
@@ -90,5 +92,14 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
         throw error;
       }
     },
+    refreshQoSRules: async () => {
+      try {
+        const rules = await networkApi.getQoSRules(); // такой метод должен быть в api
+        set({ qosRules: rules });
+      } catch (error) {
+        console.error("Failed to refresh QoS rules", error);
+      }
+    },
+
   };
 });

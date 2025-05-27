@@ -16,8 +16,8 @@ const LiveTraffic: React.FC = () => {
   useEffect(() => {
     const now = new Date().toLocaleTimeString();
     const total = metrics?.bandwidth_utilization
-      ? Object.values(metrics.bandwidth_utilization).reduce((a, b) => a + b, 0)
-      : 0;
+        ? Object.values(metrics.bandwidth_utilization).reduce((a, b) => a + b, 0)
+        : 0;
 
     const status: Record<string, QoSRuleStatus> = {};
 
@@ -38,7 +38,7 @@ const LiveTraffic: React.FC = () => {
 
   const handleDeleteRule = (protocol: string) => {
     setQoSRule(protocol, null, null).catch(() =>
-      alert("Failed to delete rule")
+        alert("Failed to delete rule")
     );
     setQosStatus((prev) => {
       const copy = { ...prev };
@@ -48,42 +48,36 @@ const LiveTraffic: React.FC = () => {
   };
 
   return (
-    <Box p={3}>
-      <Typography variant="h5" gutterBottom>
-        Live Network Traffic Monitor
-      </Typography>
+      <Box p={3}>
+        <Typography variant="h5" gutterBottom>
+          Live Network Traffic Monitor
+        </Typography>
 
-      <Grid container spacing={3}>
-        {/* Traffic Table */}
-        <Grid item xs={12} md={8}>
-          <Paper elevation={3} sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Traffic Table
-            </Typography>
-            <TrafficTable />
-          </Paper>
-        </Grid>
-
-        {/* QoS Config + Status */}
-        <Grid item xs={12} md={4}>
-          <Grid container spacing={2} direction="column">
-            <Grid item>
-              <Paper elevation={3} sx={{ p: 2 }}>
-                <QoSConfig />
-              </Paper>
-            </Grid>
-            <Grid item>
-              <Paper elevation={3} sx={{ p: 2 }}>
-                <QoSRulesStatus
+        {/* --- ВЕРХНЯЯ СТРОКА: QoS Config и Status --- */}
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2 }}>
+              <QoSConfig />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2 }}>
+              <QoSRulesStatus
                   statuses={qosStatus}
                   onDelete={handleDeleteRule}
-                />
-              </Paper>
-            </Grid>
+              />
+            </Paper>
           </Grid>
         </Grid>
-      </Grid>
-    </Box>
+
+        {/* --- НИЖНЯЯ СТРОКА: Traffic Table на всю ширину --- */}
+        <Paper elevation={3} sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Traffic Table
+          </Typography>
+          <TrafficTable />
+        </Paper>
+      </Box>
   );
 };
 
