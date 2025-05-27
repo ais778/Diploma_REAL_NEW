@@ -1,75 +1,83 @@
 import React, { useEffect, useState } from "react";
-import TrafficTable from "../components/TrafficTable";
-import TrafficGraph from "../components/TrafficGraph";
 
 type Traffic = {
-    id?: number;
     src: string;
     dst: string;
-    protocol: string;
+    protocols: string[];
     length: number;
+    qos?: { priority: number };
+    throttled?: boolean;
 };
 
 const Dashboard: React.FC = () => {
     const [traffic, setTraffic] = useState<Traffic[]>([]);
-    const [ip, setIP] = useState<string>("");
 
     useEffect(() => {
-        console.log("🚀 Попытка подключения к WebSocket...");
-
         const socket = new WebSocket("ws://127.0.0.1:8000/ws/traffic");
 
         socket.onopen = () => {
             console.log("🟢 WebSocket connected");
-            console.log("🔎 Состояние:", socket.readyState);
         };
 
         socket.onmessage = (event) => {
-            const payload = JSON.parse(event.data) as { packets: Traffic[]; metrics: any };
-            setTraffic((prev) => [...prev, ...payload.packets]);
-            // Если нужно, можно сохранить metrics в Zustand или React-state
+            try {
+                const payload = JSON.parse(event.data);
+                // payload.packets — массив наших пакетов
+                const packets: Traffic[] = payload.packets;
+                // добавляем новые пакеты в конец
+                setTraffic((prev) => [...prev, ...packets]);
+            } catch (err) {
+                console.error("❌ WS parse error:", err);
+            }
         };
 
-        socket.onerror = (error) => {
-            console.error("❌ WebSocket error!", error);
-            console.warn("🛑 Текущее состояние соединения:", socket.readyState);
+        socket.onerror = (err) => {
+            console.error("❌ WebSocket error", err);
         };
 
-        socket.onclose = (event) => {
-            console.warn("🔴 WebSocket disconnected");
-            console.log("🔍 Код закрытия:", event.code, "| Причина:", event.reason || "(не указана)");
-            console.log("🛑 Состояние соединения:", socket.readyState);
+        socket.onclose = () => {
+            console.warn("🔴 WebSocket closed");
         };
 
         return () => {
-            console.log("⛔ Закрытие WebSocket при размонтировании компонента");
             socket.close();
         };
     }, []);
 
-    const filteredTraffic = traffic.filter((pkt) => {
-        return ip === "" || pkt.src.includes(ip) || pkt.dst.includes(ip);
-    });
-
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <h1 className="text-3xl font-bold text-center mb-6 text-indigo-600">
-                Network traffic
-            </h1>
-
-            <div className="flex flex-wrap gap-4 mb-6 justify-center">
-                <input
-                    type="text"
-                    placeholder="Filter by IP"
-                    value={ip}
-                    onChange={(e) => setIP(e.target.value)}
-                    className="bg-white text-black w-full md:w-1/3 lg:w-1/4 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+        <div className="p-6 max-w-4xl mx-auto text-white">
+            <h1 className="text-2xl font-bold mb-4">Live Network Traffic</h1>
+            <div className="overflow-x-auto bg-gray-900 rounded-lg shadow-lg">
+                <table className="min-w-full">
+                    <thead>
+                    <tr className="border-b border-gray-700">
+                        <th className="px-4 py-2 text-left">Источник</th>
+                        <th className="px-4 py-2 text-left">Назначение</th>
+                        <th className="px-4 py-2 text-left">Протокол</th>
+                        <th className="px-4 py-2 text-left">Размер (байт)</th>
+                        <th className="px-4 py-2 text-left">Приоритет</th>
+                        <th className="px-4 py-2 text-left">Ограничен?</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {traffic.map((row, i) => (
+                        <tr
+                            key={i}
+                            className="hover:bg-gray-800 transition-colors"
+                        >
+                            <td className="px-4 py-2">{row.src}</td>
+                            <td className="px-4 py-2">{row.dst}</td>
+                            <td className="px-4 py-2">{row.protocols[0] || "—"}</td>
+                            <td className="px-4 py-2">{row.length}</td>
+                            <td className="px-4 py-2">{row.qos?.priority ?? "—"}</td>
+                            <td className="px-4 py-2 text-center">
+                                {row.throttled ? "🔴" : "🟢"}
+                            </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
             </div>
-
-            <TrafficGraph />
-            <br/>
-            <TrafficTable traffic={filteredTraffic} />
         </div>
     );
 };

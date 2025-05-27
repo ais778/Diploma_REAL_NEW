@@ -1,135 +1,77 @@
-import React, { useEffect, useState, useRef } from "react";
+// src/components/TrafficGraph.tsx
+import React, { useEffect, useState } from "react";
 import {
+    ResponsiveContainer,
     LineChart,
     Line,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
-    ResponsiveContainer,
-    Legend
+    Legend,
 } from "recharts";
+import { networkApi, Packet } from "../api/networkApi";
 
-type TrafficPacket = {
-    src: string;
-    dst: string;
-    protocol: string;
-    length: number;
-};
-
-interface TrafficGraphPoint {
+interface Point {
     time: string;
-    traffic: number;
-    speed: number;
+    packets: number;
+    bytes: number;
 }
 
+const COLORS = {
+    packets: "#8884d8",
+    bytes: "#82ca9d",
+};
+
 const TrafficGraph: React.FC = () => {
-    const [graphData, setGraphData] = useState<TrafficGraphPoint[]>([]);
-    const packetsBuffer = useRef<TrafficPacket[]>([]);
+    const [data, setData] = useState<Point[]>([]);
 
     useEffect(() => {
-        const socket = new WebSocket("ws://127.0.0.1:8000/ws/traffic");
+        // подписка на WebSocket-данные через networkApi
+        const unsubscribe = networkApi.subscribe(({ packets }) => {
+            const now = new Date().toLocaleTimeString();
+            const pktCount = packets.length;
+            // Явно указываем типы sum и p, чтобы TS не ругался
+            const byteSum = packets.reduce(
+                (sum: number, p: Packet) => sum + p.length,
+                0
+            );
 
-        socket.onopen = () => {
-            console.log("TrafficGraph WebSocket connected");
-        };
+            setData((d) => [
+                ...d.slice(-29),
+                { time: now, packets: pktCount, bytes: byteSum },
+            ]);
+        });
 
-        socket.onmessage = (event) => {
-            try {
-                const packets: TrafficPacket[] = JSON.parse(event.data);
-                packetsBuffer.current = packetsBuffer.current.concat(packets);
-            } catch (err) {
-                console.error("Ошибка парсинга данных WebSocket:", err);
-            }
-        };
-
-        socket.onerror = (error) => {
-            console.error("TrafficGraph WebSocket error:", error);
-        };
-
-        socket.onclose = () => {
-            console.warn("TrafficGraph WebSocket disconnected");
-        };
-
-        const intervalId = setInterval(() => {
-            const now = new Date();
-            const timeLabel = now.toLocaleTimeString();
-
-            const buffer = packetsBuffer.current;
-            if (buffer.length === 0) return;
-
-            const trafficCount = buffer.length;
-            const speedSum = buffer.reduce((acc, pkt) => acc + pkt.length, 0);
-
-            setGraphData((prev) => {
-                const newData = [...prev, { time: timeLabel, traffic: trafficCount, speed: speedSum }];
-                return newData.slice(-30);
-            });
-
-            packetsBuffer.current = [];
-        }, 1000);
-
-        return () => {
-            clearInterval(intervalId);
-            socket.close();
-        };
+        return unsubscribe;
     }, []);
 
     return (
-        <div className="space-y-10 px-2 sm:px-4 md:px-0">
-            {/* Первый график */}
-            <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                <h2 className="text-xl font-semibold mb-4 text-center text-indigo-700">Amount of packets</h2>
-                <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={graphData}>
+        <div className="bg-white rounded-lg shadow p-4">
+            <h2 className="text-xl font-semibold mb-2 text-center text-indigo-700">
+                Пакеты/с и Байты/с
+            </h2>
+            <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                            dataKey="time"
-                            label={{ value: "Time", position: "insideBottom", offset: -5 }}
-                            tick={{ fontSize: 10 }}
-                        />
-                        <YAxis
-                            label={{ value: "Packets", angle: -90, position: "insideLeft" }}
-                            tick={{ fontSize: 10 }}
-                        />
+                        <XAxis dataKey="time" />
+                        <YAxis />
                         <Tooltip />
-                        <Legend verticalAlign="top" height={36} />
+                        <Legend verticalAlign="top" />
                         <Line
                             type="monotone"
-                            dataKey="traffic"
-                            stroke="#ff7300"
-                            name="Packets"
+                            dataKey="packets"
+                            name="Пакеты/с"
+                            stroke={COLORS.packets}
                             dot={false}
-                            isAnimationActive={false}
                         />
-                    </LineChart>
-                </ResponsiveContainer>
-            </div>
-
-            {/* Второй график */}
-            <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                <h2 className="text-xl font-semibold mb-4 text-center text-green-700">Суммарный размер трафика (байт)</h2>
-                <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={graphData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                            dataKey="time"
-                            label={{ value: "Time", position: "insideBottom", offset: -5 }}
-                            tick={{ fontSize: 10 }}
-                        />
-                        <YAxis
-                            label={{ value: "Bytes", angle: -90, position: "insideLeft" }}
-                            tick={{ fontSize: 10 }}
-                        />
-                        <Tooltip />
-                        <Legend verticalAlign="top" height={36} />
                         <Line
                             type="monotone"
-                            dataKey="speed"
-                            stroke="#387908"
-                            name="Size"
+                            dataKey="bytes"
+                            name="Байты/с"
+                            stroke={COLORS.bytes}
                             dot={false}
-                            isAnimationActive={false}
                         />
                     </LineChart>
                 </ResponsiveContainer>

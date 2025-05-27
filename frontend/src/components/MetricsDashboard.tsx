@@ -112,7 +112,7 @@ export const MetricsDashboard: React.FC = () => {
     message: "",
     severity: "success",
   });
-  const intervalMs = 5000;
+  const intervalMs = 3000;
 
   // Memoize protocol list to prevent unnecessary re-renders
   const protocols = React.useMemo(
@@ -898,3 +898,4 @@ export const MetricsDashboard: React.FC = () => {
     </Box>
   );
 };
+export default MetricsDashboard;

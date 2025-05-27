@@ -1,75 +1,63 @@
+// src/App.tsx
 import React, { useEffect } from 'react';
 import {
   CssBaseline,
   ThemeProvider,
   createTheme,
-  Container,
+  Box,
   AppBar,
   Toolbar,
   Typography,
-  Box,
-  Tab,
   Tabs,
+  Tab,
+  Container
 } from '@mui/material';
 import { MetricsDashboard } from './components/MetricsDashboard';
-import { useNetworkStore } from './store/networkStore';
+import LiveTraffic from './pages/LiveTraffic';
 import { networkApi } from './api/networkApi';
+import { useNetworkStore } from './store/networkStore';
 
-// Create a dark theme
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-  },
-});
+const darkTheme = createTheme({ palette: { mode: 'dark' } });
 
 export const App: React.FC = () => {
-  const { setPackets, setMetrics } = useNetworkStore();
   const [currentTab, setCurrentTab] = React.useState(0);
+  const setPackets = useNetworkStore(s => s.setPackets);
+  const setMetrics = useNetworkStore(s => s.setMetrics);
 
   useEffect(() => {
-    // Connect to WebSocket for real-time updates
-    const ws = networkApi.connectWebSocket((data) => {
-      setPackets(data.packets);
-      setMetrics(data.metrics);
+    const ws = networkApi.connectWebSocket(({ packets, metrics }) => {
+      setPackets(packets);
+      setMetrics(metrics);
     });
-
-    // Cleanup on unmount
     return () => {
-      ws.close();
+      ws?.close();
     };
   }, [setPackets, setMetrics]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
-  };
-
   return (
-    <ThemeProvider theme={darkTheme}>
-      <CssBaseline />
-      <Box sx={{ flexGrow: 1 }}>
-        <AppBar position="static">
-          <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              Network Traffic Optimization System
-            </Typography>
-          </Toolbar>
-        </AppBar>
-
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ flexGrow: 1 }}>
+          <AppBar position="static">
+            <Toolbar>
+              <Typography variant="h6">Network Traffic Optimization System</Typography>
+            </Toolbar>
+          </AppBar>
           <Tabs
-            value={currentTab}
-            onChange={handleTabChange}
-            aria-label="dashboard tabs"
+              value={currentTab}
+              onChange={(_, v) => setCurrentTab(v)}
+              textColor="inherit"
+              indicatorColor="secondary"
           >
             <Tab label="Metrics Dashboard" />
+            <Tab label="Live Traffic" />
           </Tabs>
+          <Container maxWidth="xl" sx={{ mt: 3 }}>
+            {currentTab === 0 && <MetricsDashboard />}
+            {currentTab === 1 && <LiveTraffic />}
+          </Container>
         </Box>
-
-        <Container maxWidth="xl">
-          {currentTab === 0 && <MetricsDashboard />}
-        </Container>
-      </Box>
-    </ThemeProvider>
+      </ThemeProvider>
   );
 };
-// tea
+ export default App;
