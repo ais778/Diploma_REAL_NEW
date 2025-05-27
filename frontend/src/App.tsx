@@ -12,7 +12,7 @@ import {
   Tab,
   Container
 } from '@mui/material';
-import { MetricsDashboard } from './components/MetricsDashboard';
+import MetricsDashboard  from './pages/MetricsDashboard';
 import LiveTraffic from './pages/LiveTraffic';
 import { networkApi } from './api/networkApi';
 import { useNetworkStore } from './store/networkStore';
@@ -21,18 +21,18 @@ const darkTheme = createTheme({ palette: { mode: 'dark' } });
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = React.useState(0);
-  const setPackets = useNetworkStore(s => s.setPackets);
+  const addPackets = useNetworkStore(s => s.addPackets);
   const setMetrics = useNetworkStore(s => s.setMetrics);
 
   useEffect(() => {
     const ws = networkApi.connectWebSocket(({ packets, metrics }) => {
-      setPackets(packets);
+      addPackets(packets);
       setMetrics(metrics);
     });
     return () => {
       ws?.close();
     };
-  }, [setPackets, setMetrics]);
+  }, [addPackets, setMetrics]);
 
   return (
       <ThemeProvider theme={darkTheme}>

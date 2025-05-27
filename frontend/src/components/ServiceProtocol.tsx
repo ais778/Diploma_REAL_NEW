@@ -1,4 +1,4 @@
-// src/components/ServiceProtocolChart.tsx
+// src/components/ServiceProtocol.tsx
 import React from "react";
 import {
     Card,
@@ -25,7 +25,7 @@ interface Props {
     colors: string[];
 }
 
-const ServiceProtocolChart: React.FC<Props> = ({ data, colors }) => (
+const ServiceProtocol: React.FC<Props> = ({ data, colors }) => (
     <Card>
         <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -59,4 +59,4 @@ const ServiceProtocolChart: React.FC<Props> = ({ data, colors }) => (
     </Card>
 );
 
-export default ServiceProtocolChart;
+export default ServiceProtocol;

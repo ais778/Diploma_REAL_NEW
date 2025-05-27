@@ -1,57 +1,90 @@
-// src/pages/LiveTraffic.tsx
-import React from 'react';
-import { useNetworkStore } from '../store/networkStore';
-import {
-    Box,
-    Typography,
-    Paper,
-    Table,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TableCell,
-    TableBody
-} from '@mui/material';
+import React, { useEffect, useState } from "react";
+import { Box, Typography, Grid, Paper } from "@mui/material";
+import TrafficTable from "../components/TrafficTable";
+import QoSConfig from "../components/QoSConfig";
+import QoSRulesStatus, { QoSRuleStatus } from "../components/QoSRulesStatus";
+import { useNetworkStore } from "../store/networkStore";
 
 const LiveTraffic: React.FC = () => {
-    // берём массив пакетов из Zustand
-    const packets = useNetworkStore(state => state.packets);
+  const qosRules = useNetworkStore((s) => s.qosRules);
+  const metrics = useNetworkStore((s) => s.metrics);
+  const setQoSRule = useNetworkStore((s) => s.setQoSRule);
 
-    return (
-        <Box p={3}>
-            <Typography variant="h5" gutterBottom>
-                Live Network Traffic
-            </Typography>
-            <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-                <Table stickyHeader>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Источник</TableCell>
-                            <TableCell>Назначение</TableCell>
-                            <TableCell>Протокол</TableCell>
-                            <TableCell align="right">Размер (байт)</TableCell>
-                            <TableCell align="right">Приоритет</TableCell>
-                            <TableCell align="center">Ограничен?</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {packets.map((pkt, idx) => (
-                            <TableRow key={idx} hover>
-                                <TableCell>{pkt.src}</TableCell>
-                                <TableCell>{pkt.dst}</TableCell>
-                                <TableCell>{pkt.protocols?.[0] || '—'}</TableCell>
-                                <TableCell align="right">{pkt.length}</TableCell>
-                                <TableCell align="right">{pkt.qos?.priority ?? '—'}</TableCell>
-                                <TableCell align="center">
-                                    {pkt.throttled ? '🔴' : '🟢'}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
+  const [qosStatus, setQosStatus] = useState<Record<string, QoSRuleStatus>>({});
+
+  // Update QoS status whenever rules or metrics change
+  useEffect(() => {
+    const now = new Date().toLocaleTimeString();
+    const total = metrics?.bandwidth_utilization
+      ? Object.values(metrics.bandwidth_utilization).reduce((a, b) => a + b, 0)
+      : 0;
+
+    const status: Record<string, QoSRuleStatus> = {};
+
+    qosRules.forEach((r) => {
+      const used = metrics?.bandwidth_utilization?.[r.protocol] || 0;
+      status[r.protocol] = {
+        protocol: r.protocol,
+        active: true,
+        lastApplied: now,
+        effectiveness: total > 0 ? (used / total) * 100 : 0,
+        priority: r.priority,
+        bandwidthLimit: r.bandwidth_limit ?? null,
+      };
+    });
+
+    setQosStatus(status);
+  }, [metrics, qosRules]);
+
+  const handleDeleteRule = (protocol: string) => {
+    setQoSRule(protocol, null, null).catch(() =>
+      alert("Failed to delete rule")
     );
+    setQosStatus((prev) => {
+      const copy = { ...prev };
+      delete copy[protocol];
+      return copy;
+    });
+  };
+
+  return (
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>
+        Live Network Traffic Monitor
+      </Typography>
+
+      <Grid container spacing={3}>
+        {/* Traffic Table */}
+        <Grid item xs={12} md={8}>
+          <Paper elevation={3} sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Traffic Table
+            </Typography>
+            <TrafficTable />
+          </Paper>
+        </Grid>
+
+        {/* QoS Config + Status */}
+        <Grid item xs={12} md={4}>
+          <Grid container spacing={2} direction="column">
+            <Grid item>
+              <Paper elevation={3} sx={{ p: 2 }}>
+                <QoSConfig />
+              </Paper>
+            </Grid>
+            <Grid item>
+              <Paper elevation={3} sx={{ p: 2 }}>
+                <QoSRulesStatus
+                  statuses={qosStatus}
+                  onDelete={handleDeleteRule}
+                />
+              </Paper>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Box>
+  );
 };
 
 export default LiveTraffic;
