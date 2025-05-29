@@ -78,7 +78,7 @@ const QoSRulesStatus: React.FC<Props> = ({ statuses, onDelete }) => {
               </Typography>
               {st.bandwidthLimit !== null && (
                 <Typography variant="body2" color="text.secondary">
-                  Bandwidth: {st.bandwidthLimit} Mbps
+                  Bandwidth: {st.bandwidthLimit} bps
                 </Typography>
               )}
 

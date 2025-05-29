@@ -3,12 +3,17 @@ import { Box, Typography, Grid, Paper } from "@mui/material";
 import TrafficTable from "../components/TrafficTable";
 import QoSConfig from "../components/QoSConfig";
 import QoSRulesStatus, { QoSRuleStatus } from "../components/QoSRulesStatus";
+import SDNRuleConfig from "../components/SDNRuleConfig";
+import SDNRuleStatus from "../components/SDNRuleStatus";
 import { useNetworkStore } from "../store/networkStore";
 
 const LiveTraffic: React.FC = () => {
   const qosRules = useNetworkStore((s) => s.qosRules);
   const metrics = useNetworkStore((s) => s.metrics);
   const setQoSRule = useNetworkStore((s) => s.setQoSRule);
+
+  const sdnRules = useNetworkStore((s) => s.sdnRules);
+  const deleteSDNRule = useNetworkStore((s) => s.deleteSDNRule);
 
   const [qosStatus, setQosStatus] = useState<Record<string, QoSRuleStatus>>({});
 
@@ -37,14 +42,16 @@ const LiveTraffic: React.FC = () => {
   }, [metrics, qosRules]);
 
   const handleDeleteRule = (protocol: string) => {
-    setQoSRule(protocol, null, null).catch(() =>
-        alert("Failed to delete rule")
-    );
+    setQoSRule(protocol, null, null).catch(() => alert("Failed to delete rule"));
     setQosStatus((prev) => {
       const copy = { ...prev };
       delete copy[protocol];
       return copy;
     });
+  };
+
+  const handleDeleteSDNRule = (id: number) => {
+    deleteSDNRule(id).catch(() => alert("Failed to delete SDN rule"));
   };
 
   return (
@@ -53,7 +60,7 @@ const LiveTraffic: React.FC = () => {
           Live Network Traffic Monitor
         </Typography>
 
-        {/* --- ВЕРХНЯЯ СТРОКА: QoS Config и Status --- */}
+        {/* --- БЛОК QoS --- */}
         <Grid container spacing={2} mb={3}>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} sx={{ p: 2 }}>
@@ -62,15 +69,26 @@ const LiveTraffic: React.FC = () => {
           </Grid>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} sx={{ p: 2 }}>
-              <QoSRulesStatus
-                  statuses={qosStatus}
-                  onDelete={handleDeleteRule}
-              />
+              <QoSRulesStatus statuses={qosStatus} onDelete={handleDeleteRule} />
             </Paper>
           </Grid>
         </Grid>
 
-        {/* --- НИЖНЯЯ СТРОКА: Traffic Table на всю ширину --- */}
+        {/* --- БЛОК SDN --- */}
+        <Grid container spacing={2} mb={3}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2 }}>
+              <SDNRuleConfig />
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 2 }}>
+              <SDNRuleStatus rules={sdnRules} onDelete={handleDeleteSDNRule} />
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* --- Traffic Table --- */}
         <Paper elevation={3} sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
             Traffic Table

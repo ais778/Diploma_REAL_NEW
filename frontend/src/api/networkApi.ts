@@ -10,6 +10,15 @@ export interface QoSRule {
   priority: number;
   bandwidth_limit?: number;
 }
+export interface SDNRule {
+  id: number;
+  source_ip: string;
+  destination_ip: string;
+  action: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface NetworkMetrics {
   statistics: {
@@ -108,6 +117,18 @@ class NetworkApi {
       console.error("Error deleting QoS rule:", error);
       throw error;
     }
+  }
+  async getSDNRules(): Promise<SDNRule[]> {
+    const response = await api.get<SDNRule[]>("/api/sdn/rules");
+    return response.data;
+  }
+  async setSDNRule(rule: Omit<SDNRule, "id" | "status" | "created_at" | "updated_at">): Promise<any> {
+    const response = await api.post("/api/sdn/rules", rule);
+    return response.data;
+  }
+  async deleteSDNRule(id: number): Promise<any> {
+    const response = await api.delete(`/api/sdn/rules/${id}`);
+    return response.data;
   }
 
   // Metrics

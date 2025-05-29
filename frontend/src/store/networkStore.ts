@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { NetworkMetrics, Packet, QoSRule } from "../api/networkApi";
-import { networkApi } from "../api/networkApi";
+import { networkApi, SDNRule } from "../api/networkApi";
 
 interface NetworkStore {
   // Real-time data
@@ -16,6 +16,9 @@ interface NetworkStore {
   qosRules: QoSRule[];
   protocolFilter: string | null;
 
+  // SDN Rules
+  sdnRules: SDNRule[];
+
   // Actions
   addPackets: (packets: Packet[]) => void;
   clearPackets: () => void;
@@ -30,24 +33,20 @@ interface NetworkStore {
   ) => Promise<void>;
   refreshQoSRules: () => Promise<void>;
 
+  // SDN Actions
+  setSDNRule: (
+      rule: Omit<SDNRule, "id" | "status" | "created_at" | "updated_at">
+  ) => Promise<void>;
+  deleteSDNRule: (id: number) => Promise<void>;
+  refreshSDNRules: () => Promise<void>;
 }
-
-type SetState = (
-    partial:
-        | NetworkStore
-        | Partial<NetworkStore>
-        | ((state: NetworkStore) => NetworkStore | Partial<NetworkStore>),
-    replace?: boolean
-) => void;
 
 export const useNetworkStore = create<NetworkStore>((set, get) => {
   // Auto-subscribe to incoming WebSocket batches
   networkApi.subscribe(({ packets, metrics, aggregation }) => {
     set((state) => ({
-      // Keep last 100 packets, then append new batch
       packets: [...state.packets.slice(-100), ...packets],
       metrics,
-      // update aggregation if provided
       protocolAggregation: aggregation || state.protocolAggregation,
     }));
   });
@@ -58,8 +57,9 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
     protocolAggregation: {},
     qosRules: [],
     protocolFilter: null,
+    sdnRules: [],
 
-    // Append new packets (kept for manual use if needed)
+    // QoS Actions
     addPackets: (newPackets: Packet[]) =>
         set((state) => ({
           packets: [...state.packets.slice(-100), ...newPackets],
@@ -71,7 +71,6 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
     setQoSRules: (rules: QoSRule[]) => set({ qosRules: rules }),
     setProtocolFilter: (protocol) => set({ protocolFilter: protocol }),
 
-    // Unified QoS rule setter/deleter
     setQoSRule: async (
         protocol: string,
         priority: number | null,
@@ -87,6 +86,7 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
             bandwidth_limit: bandwidthLimit || undefined,
           });
         }
+        await get().refreshQoSRules();
       } catch (error) {
         console.error("Error in setQoSRule:", error);
         throw error;
@@ -94,12 +94,39 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
     },
     refreshQoSRules: async () => {
       try {
-        const rules = await networkApi.getQoSRules(); // такой метод должен быть в api
+        const rules = await networkApi.getQoSRules();
         set({ qosRules: rules });
       } catch (error) {
         console.error("Failed to refresh QoS rules", error);
       }
     },
 
+    // SDN Actions
+    setSDNRule: async (rule) => {
+      try {
+        await networkApi.setSDNRule(rule);
+        await get().refreshSDNRules();
+      } catch (error) {
+        console.error("Error in setSDNRule:", error);
+        throw error;
+      }
+    },
+    deleteSDNRule: async (id) => {
+      try {
+        await networkApi.deleteSDNRule(id);
+        await get().refreshSDNRules();
+      } catch (error) {
+        console.error("Error in deleteSDNRule:", error);
+        throw error;
+      }
+    },
+    refreshSDNRules: async () => {
+      try {
+        const rules = await networkApi.getSDNRules();
+        set({ sdnRules: rules });
+      } catch (error) {
+        console.error("Failed to refresh SDN rules", error);
+      }
+    },
   };
 });

@@ -32,6 +32,22 @@ class QoSRuleRequest(BaseModel):
     priority: int
     bandwidth_limit: Optional[float] = None
 
+
+class SDNRuleRequest(BaseModel):
+    source_ip: str
+    destination_ip: str
+    action: str
+
+class SDNRuleResponse(BaseModel):
+    id: int
+    source_ip: str
+    destination_ip: str
+    action: str
+    priority: int
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
 app = FastAPI(title="Network Traffic Optimization System")
 
 # Add prometheus metrics endpoint
@@ -117,6 +133,28 @@ async def delete_qos_rule(protocol: str, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Error deleting QoS rule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+@app.get("/api/sdn/rules", response_model=List[SDNRuleResponse])
+async def get_sdn_rules(db: Session = Depends(get_db)):
+    rules = crud.get_sdn_rules(db)
+    return rules
+
+@app.post("/api/sdn/rules", response_model=SDNRuleResponse)
+async def add_sdn_rule(rule: SDNRuleRequest, db: Session = Depends(get_db)):
+    db_rule = crud.create_sdn_rule(db, rule.source_ip, rule.destination_ip, rule.action)
+    return db_rule
+
+@app.delete("/api/sdn/rules/{rule_id}")
+async def delete_sdn_rule(rule_id: int, db: Session = Depends(get_db)):
+    deleted = crud.delete_sdn_rule(db, rule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {"message": "SDN rule deleted", "status": "success"}
+
+
 
 @app.get("/api/metrics/current")
 async def get_current_metrics():
