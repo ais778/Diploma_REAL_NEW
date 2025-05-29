@@ -1,30 +1,26 @@
 import React from "react";
 import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Box,
   Grid,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Button,
   Snackbar,
   Alert,
+  ToggleButton,
+  ToggleButtonGroup,
+  Card,
+  CardContent,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useNetworkStore } from "../store/networkStore";
 import CircularProgress from "@mui/material/CircularProgress";
 
 const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "DNS"];
 
 const getPriorityColor = (p: number) => {
-  if (p >= 8) return "#66ff00";
-  if (p >= 5) return "#ffcc00";
-  return "#ff3300";
+  if (p === 6) return "#ff3300"; // Красный
+  if (p >= 4) return "#ffcc00";  // Желтый
+  return "#66ff00";              // Зеленый
 };
 
 const QoSConfig: React.FC = () => {
@@ -32,7 +28,7 @@ const QoSConfig: React.FC = () => {
   const qosRules = useNetworkStore((s) => s.qosRules);
   const refreshQoSRules = useNetworkStore((s) => s.refreshQoSRules);
   const [selectedProtocol, setSelectedProtocol] = React.useState("TCP");
-  const [priority, setPriority] = React.useState(1);
+  const [priorityReversed, setPriorityReversed] = React.useState(6); // Слева 6
   const [bandwidthLimit, setBandwidthLimit] = React.useState<number | "">("");
   const [loading, setLoading] = React.useState(false);
 
@@ -46,123 +42,137 @@ const QoSConfig: React.FC = () => {
     severity: "success",
   });
 
-  // Update form when selecting an existing rule
+  // Слева 6 (красный), справа 1 (зеленый)
+  const currentPriority = 7 - priorityReversed;
+
   React.useEffect(() => {
     const existingRule = qosRules.find((r) => r.protocol === selectedProtocol);
     if (existingRule) {
-      setPriority(existingRule.priority);
+      setPriorityReversed(7 - existingRule.priority);
       setBandwidthLimit(existingRule.bandwidth_limit ?? "");
     } else {
-      setPriority(1);
+      setPriorityReversed(6);
       setBandwidthLimit("");
     }
   }, [selectedProtocol, qosRules]);
 
-    const handleApply = async () => {
-        await new Promise((r) => setTimeout(r, 500)); // задержка 0.5 сек
-        setLoading(true);
-        try {
-            console.log("SelectedProtocol:", selectedProtocol, "Priority:", priority, "BandwidthLimit:", bandwidthLimit);
-            await setQoSRule(selectedProtocol, priority, bandwidthLimit === "" ? null : bandwidthLimit);
-            await refreshQoSRules();
-            setSnackbar({ open: true, message: "Rule applied successfully", severity: "success" });
-        } catch (e) {
-            setSnackbar({ open: true, message: "Failed to apply rule", severity: "error" });
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleApply = async () => {
+    await new Promise((r) => setTimeout(r, 500));
+    setLoading(true);
+    try {
+      await setQoSRule(selectedProtocol, currentPriority, bandwidthLimit === "" ? null : bandwidthLimit);
+      await refreshQoSRules();
+      setSnackbar({ open: true, message: "Rule applied successfully", severity: "success" });
+    } catch (e) {
+      setSnackbar({ open: true, message: "Failed to apply rule", severity: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-
-    return (
-    <>
-      <Accordion defaultExpanded>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <Typography variant="h6">QoS Configuration</Typography>
-            {/* Здесь можно поставить индикатор активности правил */}
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Protocol</InputLabel>
-                <Select
-                  value={selectedProtocol}
-                  label="Protocol"
-                  onChange={(e) => setSelectedProtocol(e.target.value)}
+  return (
+      <>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              QoS Configuration
+            </Typography>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12}>
+                <Typography variant="body2" mb={1}>
+                  Protocol
+                </Typography>
+                <ToggleButtonGroup
+                    value={selectedProtocol}
+                    exclusive
+                    onChange={(_, val) => val && setSelectedProtocol(val)}
+                    size="small"
+                    color="primary"
+                    fullWidth
                 >
                   {PROTOCOLS.map((p) => (
-                    <MenuItem key={p} value={p}>
-                      {p}
-                    </MenuItem>
+                      <ToggleButton key={p} value={p} sx={{ minWidth: 70 }}>
+                        {p}
+                      </ToggleButton>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Box>
-                <Typography variant="body2">Priority</Typography>
-                <Box display="flex" alignItems="center" gap={1}>
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    value={priority}
-                    onChange={(e) => setPriority(+e.target.value)}
-                    style={{ flex: 1, accentColor: getPriorityColor(priority) }}
-                  />
-                  <Typography>{priority}</Typography>
+                </ToggleButtonGroup>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box>
+                  <Typography variant="body2">Priority</Typography>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <input
+                        type="range"
+                        min={1}
+                        max={6}
+                        step={1}
+                        value={priorityReversed}
+                        onChange={(e) => setPriorityReversed(+e.target.value)}
+                        style={{
+                          flex: 1,
+                          accentColor: getPriorityColor(currentPriority),
+                        }}
+                    />
+                    <Typography
+                        style={{
+                          fontWeight: "bold",
+                          minWidth: 18,
+                          color: getPriorityColor(currentPriority),
+                          fontSize: 20,
+                        }}
+                    >
+                      {currentPriority}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="Bandwidth Limit (Mbps)"
-                size="small"
-                type="number"
-                fullWidth
-                value={bandwidthLimit}
-                onChange={(e) =>
-                  setBandwidthLimit(
-                    e.target.value === "" ? "" : +e.target.value
-                  )
-                }
-              />
-            </Grid>
-            <Grid item xs={12}>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                    label="Bandwidth Limit (bytes)"
+                    size="small"
+                    type="number"
+                    fullWidth
+                    value={bandwidthLimit}
+                    onChange={(e) =>
+                        setBandwidthLimit(e.target.value === "" ? "" : +e.target.value)
+                    }
+                />
+              </Grid>
+              <Grid item xs={12}>
                 <Button
                     variant="contained"
                     fullWidth
                     onClick={handleApply}
                     color={
-                        qosRules.some((r) => r.protocol === selectedProtocol)
-                            ? "secondary"
-                            : "primary"
+                      qosRules.some((r) => r.protocol === selectedProtocol)
+                          ? "secondary"
+                          : "primary"
                     }
                     disabled={loading}
-                    startIcon={loading ? <CircularProgress color="inherit" size={20} /> : null}
+                    startIcon={
+                      loading ? <CircularProgress color="inherit" size={20} /> : null
+                    }
                 >
-                    {loading
-                        ? "Applying..."
-                        : qosRules.some((r) => r.protocol === selectedProtocol)
-                            ? "Update Rule"
-                            : "Create Rule"}
+                  {loading
+                      ? "Applying..."
+                      : qosRules.some((r) => r.protocol === selectedProtocol)
+                          ? "Update Rule"
+                          : "Create Rule"}
                 </Button>
+              </Grid>
             </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
+          </CardContent>
+        </Card>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-      >
-        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
-      </Snackbar>
-    </>
+        <Snackbar
+            open={snackbar.open}
+            autoHideDuration={3000}
+            onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        >
+          <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
+        </Snackbar>
+      </>
   );
 };
 
