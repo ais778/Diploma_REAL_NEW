@@ -15,6 +15,11 @@ from pydantic import BaseModel
 import sys
 from scapy.all import IFACES
 import time
+from sqlalchemy.orm import Session
+from fastapi import Depends
+from database import get_db, SessionLocal
+from models import QoSRuleHistory
+import crud
 
 # Define request model for QoS rules
 class QoSRule(BaseModel):
@@ -54,36 +59,32 @@ MAX_PACKETS_PER_BATCH = 50  # Maximum number of packets to send in one batch
 
 # QoS configuration endpoints
 @app.get("/api/qos/rules", response_model=List[QoSRule])
-async def get_qos_rules():
-    try:
-        print("QOS_RULES:", optimizer.get_all_qos_rules())  # Вставь сюда
-        rules = []
-        for protocol, rule in optimizer.get_all_qos_rules().items():
-            priority = rule.get("priority", 0)
-            bandwidth_limit = rule.get("bandwidth_limit")
-            try:
-                priority = int(priority)
-            except Exception:
-                priority = 0
-            try:
-                bandwidth_limit = float(bandwidth_limit) if bandwidth_limit is not None else None
-            except Exception:
-                bandwidth_limit = None
+async def get_qos_rules(db: Session = Depends(get_db)):
+    rules = crud.get_qos_rules(db)
+    return [
+        QoSRule(
+            protocol=r.protocol,
+            priority=r.priority,
+            bandwidth_limit=r.bandwidth_bps
+        ) for r in rules
+    ]
 
-            rules.append(QoSRule(protocol=protocol, priority=priority, bandwidth_limit=bandwidth_limit))
-        return rules
-    except Exception as e:
-        print("ERROR in get_qos_rules:", e)
-        raise HTTPException(status_code=500, detail=str(e))
-
-    
-
-    
 @app.post("/api/qos/rules")
-async def set_qos_rule(rule: QoSRuleRequest):
-    """Set QoS rules for a specific protocol"""
+async def set_qos_rule(rule: QoSRuleRequest, db: Session = Depends(get_db)):
+    print(f"📝 Setting QoS rule: {rule}")
     try:
-        optimizer.set_qos_rule(rule.protocol, rule.priority, rule.bandwidth_limit)
+        # Update database
+        db_rule = crud.update_qos_rule(db, rule.protocol, rule.priority, rule.bandwidth_limit)
+        print(f"✅ Database updated: {db_rule}")
+        
+        # Update optimizer
+        optimizer.set_qos_rule(
+            protocol=rule.protocol,
+            priority=rule.priority,
+            bandwidth_limit=rule.bandwidth_limit
+        )
+        print(f"✅ Optimizer updated")
+        
         return {
             "message": f"QoS rule set for {rule.protocol}",
             "status": "success",
@@ -94,19 +95,28 @@ async def set_qos_rule(rule: QoSRuleRequest):
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"❌ Error setting QoS rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/qos/rules/{protocol}")
-async def delete_qos_rule(protocol: str):
-    """Delete QoS rule for a specific protocol"""
+async def delete_qos_rule(protocol: str, db: Session = Depends(get_db)):
+    print(f"🗑️ Deleting QoS rule for protocol: {protocol}")
     try:
+        # Delete from database
+        if not crud.delete_qos_rule(db, protocol):
+            print(f"❌ No rule found for {protocol}")
+            raise HTTPException(status_code=404, detail=f"No rule found for {protocol}")
+        
+        # Remove from optimizer
         optimizer.remove_qos_rule(protocol)
-        return {
-            "message": f"QoS rule deleted for {protocol}",
-            "status": "success"
-        }
+        print(f"✅ Rule deleted from database and optimizer")
+        
+        return {"message": f"QoS rule deleted for {protocol}", "status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"❌ Error deleting QoS rule: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/metrics/current")
 async def get_current_metrics():
