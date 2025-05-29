@@ -1,8 +1,63 @@
-import './App.css'
-import Dashboard from "./pages/Dashboard";
-const App: React.FC = () => {
-    return <Dashboard />;
-};
+// src/App.tsx
+import React, { useEffect } from 'react';
+import {
+  CssBaseline,
+  ThemeProvider,
+  createTheme,
+  Box,
+  AppBar,
+  Toolbar,
+  Typography,
+  Tabs,
+  Tab,
+  Container
+} from '@mui/material';
+import MetricsDashboard  from './pages/MetricsDashboard';
+import LiveTraffic from './pages/LiveTraffic';
+import { networkApi } from './api/networkApi';
+import { useNetworkStore } from './store/networkStore';
 
-export default App;
-// tea
+const darkTheme = createTheme({ palette: { mode: 'dark' } });
+
+export const App: React.FC = () => {
+  const [currentTab, setCurrentTab] = React.useState(0);
+  const addPackets = useNetworkStore(s => s.addPackets);
+  const setMetrics = useNetworkStore(s => s.setMetrics);
+
+  useEffect(() => {
+    const ws = networkApi.connectWebSocket(({ packets, metrics }) => {
+      addPackets(packets);
+      setMetrics(metrics);
+    });
+    return () => {
+      ws?.close();
+    };
+  }, [addPackets, setMetrics]);
+
+  return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ flexGrow: 1 }}>
+          <AppBar position="static">
+            <Toolbar>
+              <Typography variant="h6">Network Traffic Optimization System</Typography>
+            </Toolbar>
+          </AppBar>
+          <Tabs
+              value={currentTab}
+              onChange={(_, v) => setCurrentTab(v)}
+              textColor="inherit"
+              indicatorColor="secondary"
+          >
+            <Tab label="Metrics Dashboard" />
+            <Tab label="Live Traffic" />
+          </Tabs>
+          <Container maxWidth="xl" sx={{ mt: 3 }}>
+            {currentTab === 0 && <MetricsDashboard />}
+            {currentTab === 1 && <LiveTraffic />}
+          </Container>
+        </Box>
+      </ThemeProvider>
+  );
+};
+ export default App;

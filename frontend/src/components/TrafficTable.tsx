@@ -1,38 +1,101 @@
-type Traffic = {
-  src: string;
-  dst: string;
-  protocol: string;
-  length: number;
-};
+import React, { useEffect, useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Snackbar,
+  Alert,
+} from "@mui/material";
+import { networkApi, Packet, QoSRule } from "../api/networkApi";
+import { useNetworkStore } from "../store/networkStore";
 
-type Props = {
-  traffic: Traffic[];
-};
+// Те же самые протоколы, что и в QoSConfig!
+const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "DNS"];
 
-const TrafficTable: React.FC<Props> = ({ traffic }) => {
+function getQosRuleMap(qosRules: QoSRule[]) {
+  const map: Record<string, QoSRule> = {};
+  qosRules.forEach((rule) => {
+    map[rule.protocol] = rule;
+  });
+  return map;
+}
+
+const TrafficTable: React.FC = () => {
+  const [rows, setRows] = useState<Packet[]>([]);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "info" as "success" | "error" | "info" | "warning",
+  });
+
+  const qosRules = useNetworkStore((s) => s.qosRules);
+  const qosMap = getQosRuleMap(qosRules);
+
+  useEffect(() => {
+    const unsubscribe = networkApi.subscribe(({ packets }) => {
+      setRows((prev) => [...prev.slice(-500), ...packets]);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Ищем первый протокол из списка PROTOCOLS в pkt.protocols
+  function getMainQosProtocol(protocols?: string[]): string {
+    if (!protocols || protocols.length === 0) return "—";
+    const found = PROTOCOLS.find((p) => protocols.includes(p));
+    return found || protocols.find((p) => p !== "Ethernet") || protocols[0] || "—";
+  }
+
   return (
-    <div className="overflow-x-auto shadow-lg rounded-lg bg-white p-4">
-      <table className="min-w-full table-auto border-collapse">
-        <thead className="bg-indigo-600 text-white">
-          <tr>
-            <th className="px-6 py-3 text-left">Источник</th>
-            <th className="px-6 py-3 text-left">Назначение</th>
-            <th className="px-6 py-3 text-left">Протокол</th>
-            <th className="px-6 py-3 text-left">Размер (байт)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {traffic.map((item, index) => (
-            <tr key={index} className="border-b hover:bg-gray-100">
-              <td className="px-6 py-4">{item.src}</td>
-              <td className="px-6 py-4">{item.dst}</td>
-              <td className="px-6 py-4">{item.protocol}</td>
-              <td className="px-6 py-4">{item.length}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <>
+        <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Source</TableCell>
+                <TableCell>Destination</TableCell>
+                <TableCell>Protocol</TableCell>
+                <TableCell align="right">Size (bytes)</TableCell>
+                <TableCell align="right">Priority</TableCell>
+                <TableCell align="right">Limit (bytes)</TableCell>
+                <TableCell align="center">Throttled</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((pkt, idx) => {
+                const mainProtocol = getMainQosProtocol(pkt.protocols);
+                const rule = qosMap[mainProtocol];
+                const limit = rule?.bandwidth_limit ?? null;
+                const isThrottled = pkt.throttled ? "Yes" : "No";
+                return (
+                    <TableRow key={idx} hover>
+                      <TableCell>{pkt.src}</TableCell>
+                      <TableCell>{pkt.dst}</TableCell>
+                      <TableCell>{mainProtocol}</TableCell>
+                      <TableCell align="right">{pkt.length}</TableCell>
+                      <TableCell align="right">{pkt.qos?.priority ?? rule?.priority ?? "—"}</TableCell>
+                      <TableCell align="right">{limit !== undefined && limit !== null ? limit : "—"}</TableCell>
+                      <TableCell align="center">{isThrottled}</TableCell>
+                    </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Snackbar
+            open={snackbar.open}
+            autoHideDuration={3000}
+            onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        >
+          <Alert severity={snackbar.severity} sx={{ width: "100%" }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </>
   );
 };
 
