@@ -61,7 +61,7 @@ const TrafficTable: React.FC = () => {
                 <TableCell align="right">Size (bytes)</TableCell>
                 <TableCell align="right">Priority</TableCell>
                 <TableCell align="right">Limit (bytes)</TableCell>
-                <TableCell align="center">Throttled</TableCell>
+                <TableCell align="center">Limited</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>

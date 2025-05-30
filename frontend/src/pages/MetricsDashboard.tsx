@@ -11,6 +11,7 @@ import ProtocolDistribution, { ProtocolDatum } from "../components/ProtocolDistr
 import PacketSizeTrend, { TrendPoint } from "../components/PacketSizeTrend";
 import LatencyMetrics, { LatencyPoint } from "../components/LatencyMetrics";
 import BandwidthUtilizationChart, { BandwidthPoint } from "../components/BandwidthUtilization";
+import SummaryStatistics from "../components/SummaryStatistics";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
@@ -71,6 +72,9 @@ const MetricsDashboard: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <SummaryStatistics />
+          </Grid>
           <Grid item xs={12}>
             <ProtocolDistribution mainData={mainData} serviceData={serviceData} colors={COLORS} />
           </Grid>

@@ -30,6 +30,10 @@ export interface NetworkMetrics {
     throughput: number;
     protocol_distribution: Record<string, number>;
     moving_avg_size?: number;
+    original_avg_size: number;
+    optimized_avg_size: number;
+    original_throughput: number;
+    optimized_throughput:number;
   };
   bandwidth_utilization: Record<string, number>;
   latency_metrics: {
