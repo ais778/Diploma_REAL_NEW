@@ -2,28 +2,30 @@ import { create } from "zustand";
 import { NetworkMetrics, Packet, QoSRule } from "../api/networkApi";
 import { networkApi, SDNRule } from "../api/networkApi";
 
+interface ProtocolAggregation {
+  count: number;
+  total_size: number;
+  packets: Packet[];
+}
+
 interface NetworkStore {
   // Real-time data
   packets: Packet[];
   metrics: NetworkMetrics | null;
-  protocolAggregation: Record<string, {
-    count: number;
-    total_size: number;
-    packets: Packet[];
-  }>;
+  protocolAggregation: Record<string, ProtocolAggregation>;
 
-  // QoS Rules
+  // QoS
   qosRules: QoSRule[];
   protocolFilter: string | null;
 
-  // SDN Rules
+  // SDN
   sdnRules: SDNRule[];
 
-  // Actions
+  // QoS Actions
   addPackets: (packets: Packet[]) => void;
   clearPackets: () => void;
   setMetrics: (metrics: NetworkMetrics) => void;
-  setProtocolAggregation: (aggregation: Record<string, any>) => void;
+  setProtocolAggregation: (aggregation: Record<string, ProtocolAggregation>) => void;
   setQoSRules: (rules: QoSRule[]) => void;
   setProtocolFilter: (protocol: string | null) => void;
   setQoSRule: (
@@ -42,7 +44,7 @@ interface NetworkStore {
 }
 
 export const useNetworkStore = create<NetworkStore>((set, get) => {
-  // Auto-subscribe to incoming WebSocket batches
+  // WebSocket subscription (real-time updates)
   networkApi.subscribe(({ packets, metrics, aggregation }) => {
     set((state) => ({
       packets: [...state.packets.slice(-100), ...packets],
@@ -52,6 +54,7 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
   });
 
   return {
+    // State
     packets: [],
     metrics: null,
     protocolAggregation: {},
@@ -60,22 +63,18 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
     sdnRules: [],
 
     // QoS Actions
-    addPackets: (newPackets: Packet[]) =>
+    addPackets: (newPackets) =>
         set((state) => ({
           packets: [...state.packets.slice(-100), ...newPackets],
         })),
     clearPackets: () => set({ packets: [] }),
-    setMetrics: (metrics: NetworkMetrics) => set({ metrics }),
+    setMetrics: (metrics) => set({ metrics }),
     setProtocolAggregation: (aggregation) =>
         set({ protocolAggregation: aggregation || {} }),
-    setQoSRules: (rules: QoSRule[]) => set({ qosRules: rules }),
+    setQoSRules: (rules) => set({ qosRules: rules }),
     setProtocolFilter: (protocol) => set({ protocolFilter: protocol }),
 
-    setQoSRule: async (
-        protocol: string,
-        priority: number | null,
-        bandwidthLimit: number | null
-    ) => {
+    setQoSRule: async (protocol, priority, bandwidthLimit) => {
       try {
         if (priority === null && bandwidthLimit === null) {
           await networkApi.deleteQoSRule(protocol);
@@ -92,6 +91,7 @@ export const useNetworkStore = create<NetworkStore>((set, get) => {
         throw error;
       }
     },
+
     refreshQoSRules: async () => {
       try {
         const rules = await networkApi.getQoSRules();

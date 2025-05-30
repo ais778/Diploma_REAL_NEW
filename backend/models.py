@@ -1,4 +1,3 @@
-# models.py
 from sqlalchemy import Column, Integer, String, BigInteger, Numeric, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime

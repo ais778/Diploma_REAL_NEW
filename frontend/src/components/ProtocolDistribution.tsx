@@ -1,30 +1,15 @@
 import React from "react";
-import { Card, CardContent, Typography, Grid, Box } from "@mui/material";
-import {
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    Tooltip,
-    Legend,
-} from "recharts";
-
-export interface ProtocolDatum {
-    name: string;
-    value: number;
-}
+import { Card, CardContent, Typography, Grid } from "@mui/material";
+import MainProtocol, { ProtocolDatum as MainProtocolDatum } from "./MainProtocol";
+import ServiceProtocol, { ProtocolDatum as ServiceProtocolDatum } from "./ServiceProtocol";
 
 interface Props {
-    mainData: ProtocolDatum[];
-    serviceData: ProtocolDatum[];
+    mainData: MainProtocolDatum[];
+    serviceData: ServiceProtocolDatum[];
     colors: string[];
 }
 
-const ProtocolDistribution: React.FC<Props> = ({
-                                                   mainData,
-                                                   serviceData,
-                                                   colors,
-                                               }) => (
+const ProtocolDistribution: React.FC<Props> = ({ mainData, serviceData, colors }) => (
     <Card>
         <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -35,57 +20,13 @@ const ProtocolDistribution: React.FC<Props> = ({
                     <Typography variant="subtitle1" gutterBottom>
                         Main Protocols
                     </Typography>
-                    <Box height={250}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={mainData}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={80}
-                                    label
-                                >
-                                    {mainData.map((_, i) => (
-                                        <Cell key={i} fill={colors[i % colors.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </Box>
+                    <MainProtocol data={mainData} colors={colors} />
                 </Grid>
-
                 <Grid item xs={12} md={6}>
                     <Typography variant="subtitle1" gutterBottom>
                         Service Protocols
                     </Typography>
-                    <Box height={250}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={serviceData}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={80}
-                                    label
-                                >
-                                    {serviceData.map((_, i) => (
-                                        <Cell
-                                            key={i}
-                                            fill={colors[(i + mainData.length) % colors.length]}
-                                        />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </Box>
+                    <ServiceProtocol data={serviceData} colors={colors} />
                 </Grid>
             </Grid>
         </CardContent>

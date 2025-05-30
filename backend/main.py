@@ -47,20 +47,17 @@ class SDNRuleResponse(BaseModel):
 
 app = FastAPI(title="Network Traffic Optimization System")
 
-# Prometheus metrics endpoint
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 # CORS config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # поидее не безопасно нужно локалхост фронта написать 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Global
 optimizer = TrafficOptimizer()
 metrics_collector = NetworkMetricsCollector()
 active_connections: Set[WebSocket] = set()
@@ -102,7 +99,7 @@ async def set_qos_rule(rule: QoSRuleRequest, db: Session = Depends(get_db)):
             }
         }
     except Exception as e:
-        print(f"❌ Error setting QoS rule: {e}")
+        print(f" Error setting QoS rule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/qos/rules/{protocol}")
@@ -110,7 +107,7 @@ async def delete_qos_rule(protocol: str, db: Session = Depends(get_db)):
     print(f"🗑️ Deleting QoS rule for protocol: {protocol}")
     try:
         if not crud.delete_qos_rule(db, protocol):
-            print(f"❌ No rule found for {protocol}")
+            print(f" No rule found for {protocol}")
             raise HTTPException(status_code=404, detail=f"No rule found for {protocol}")
         optimizer.remove_qos_rule(protocol)
         print(f"✅ Rule deleted from database and optimizer")
@@ -118,7 +115,7 @@ async def delete_qos_rule(protocol: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error deleting QoS rule: {e}")
+        print(f" Error deleting QoS rule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # SDN Endpoints
@@ -212,31 +209,26 @@ async def traffic_ws(websocket: WebSocket):
             try:
                 global last_send_time
                 now = time.time()
-                # Collect packets into buffer
                 if raw_packets:
                     packet_buffer.extend(raw_packets)
                     raw_packets.clear()
-                # Every SEND_INTERVAL seconds, process and send the batch
+
                 if now - last_send_time >= SEND_INTERVAL and packet_buffer:
                     print(f"⚙️ Processing {len(packet_buffer)} packets (batch) ...")
-                    # Limit the number of packets to process
+
                     packets_to_process = packet_buffer[-MAX_PACKETS_PER_BATCH:]
                     packet_dicts = [packet_to_dict(pkt) for pkt in packets_to_process]
                     packet_dicts = [pkt for pkt in packet_dicts if pkt]
 
-                    # Оригинальные метрики
                     for packet in packet_dicts:
                         metrics_collector.record_packet(packet, optimized=False)
 
-                    # Оптимизация
                     optimized_packets = optimize_packets(packet_dicts)
                     for packet in optimized_packets:
                         metrics_collector.record_packet(packet, optimized=True)
 
-                    # Отправляем обновленные метрики
                     metrics = await get_current_metrics()
 
-                    # Аггрегация по протоколам
                     protocol_aggregation = {}
                     for pkt in packet_dicts:
                         protocol = pkt.get("protocols", ["Unknown"])[0]
@@ -260,7 +252,6 @@ async def traffic_ws(websocket: WebSocket):
                     packet_buffer.clear()
                     last_send_time = now
                 else:
-                    # Send empty packets to keep frontend alive
                     metrics = await get_current_metrics()
                     response = {
                         "packets": [],
@@ -269,10 +260,10 @@ async def traffic_ws(websocket: WebSocket):
                     }
                     await websocket.send_json(response)
             except WebSocketDisconnect:
-                print(f"❌ Client disconnected normally: {websocket.client}")
+                print(f"Client disconnected normally: {websocket.client}")
                 break
             except Exception as e:
-                print(f"⚠️ WebSocket loop error: {e}")
+                print(f" WebSocket loop error: {e}")
                 break
     finally:
         active_connections.discard(websocket)

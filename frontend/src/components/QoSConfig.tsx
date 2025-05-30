@@ -18,9 +18,9 @@ import CircularProgress from "@mui/material/CircularProgress";
 const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "DNS"];
 
 const getPriorityColor = (p: number) => {
-  if (p === 6) return "#ff3300"; // Красный
-  if (p >= 4) return "#ffcc00";  // Желтый
-  return "#66ff00";              // Зеленый
+  if (p === 6) return "#ff3300";
+  if (p >= 4) return "#ffcc00";
+  return "#66ff00";
 };
 
 const QoSConfig: React.FC = () => {
@@ -42,7 +42,6 @@ const QoSConfig: React.FC = () => {
     severity: "success",
   });
 
-  // Слева 6 (красный), справа 1 (зеленый)
   const currentPriority = 7 - priorityReversed;
 
   React.useEffect(() => {

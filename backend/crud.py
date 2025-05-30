@@ -1,7 +1,6 @@
-# crud.py
 from sqlalchemy.orm import Session
 from datetime import datetime
-from models import QoSRuleHistory, SDNFlowRule  # <-- ДОБАВЬ SDNFlowRule
+from models import QoSRuleHistory, SDNFlowRule 
 
 def get_qos_rules(db: Session):
     return db.query(QoSRuleHistory).order_by(QoSRuleHistory.priority.desc()).all()

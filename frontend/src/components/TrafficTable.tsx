@@ -13,7 +13,7 @@ import {
 import { networkApi, Packet, QoSRule } from "../api/networkApi";
 import { useNetworkStore } from "../store/networkStore";
 
-// Те же самые протоколы, что и в QoSConfig!
+// Те же самые протоколы, что и в QoSConfig
 const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "DNS"];
 
 function getQosRuleMap(qosRules: QoSRule[]) {

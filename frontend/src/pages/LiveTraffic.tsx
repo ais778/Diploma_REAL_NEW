@@ -17,7 +17,6 @@ const LiveTraffic: React.FC = () => {
 
   const [qosStatus, setQosStatus] = useState<Record<string, QoSRuleStatus>>({});
 
-  // Update QoS status whenever rules or metrics change
   useEffect(() => {
     const now = new Date().toLocaleTimeString();
     const total = metrics?.bandwidth_utilization
@@ -60,7 +59,7 @@ const LiveTraffic: React.FC = () => {
           Live Network Traffic Monitor
         </Typography>
 
-        {/* --- БЛОК QoS --- */}
+
         <Grid container spacing={2} mb={3}>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} sx={{ p: 2 }}>
@@ -73,8 +72,7 @@ const LiveTraffic: React.FC = () => {
             </Paper>
           </Grid>
         </Grid>
-
-        {/* --- БЛОК SDN --- */}
+        {/* SDN */}
         <Grid container spacing={2} mb={3}>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} sx={{ p: 2 }}>
@@ -88,7 +86,6 @@ const LiveTraffic: React.FC = () => {
           </Grid>
         </Grid>
 
-        {/* --- Traffic Table --- */}
         <Paper elevation={3} sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
             Traffic Table

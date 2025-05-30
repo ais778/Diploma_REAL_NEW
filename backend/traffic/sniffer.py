@@ -7,7 +7,7 @@ import queue
 from scapy.layers.inet import IP, TCP, UDP
 import logging
 
-# Configure logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,9 @@ def sniff_interface(interface_name: str, callback: Callable):
         sniff(iface=interface_name,
               prn=process_packet,
               store=0,
-              count=0)  # count=0 для бесконечного захвата
+              count=0)  
     except Exception as e:
-        print(f"❌ Ошибка сниффера на интерфейсе {interface_name}: {e}")
+        print(f"Ошибка сниффера на интерфейсе {interface_name}: {e}")
         time.sleep(1)
         # Перезапускаем захват на этом интерфейсе
         sniff_interface(interface_name, callback)
@@ -51,7 +51,7 @@ class PacketSniffer:
     def packet_handler(self, packet):
         """Handle captured packets and put them in queue"""
         try:
-            if IP in packet:  # Only process IP packets
+            if IP in packet: 
                 self.packet_queue.put(packet)
         except Exception as e:
             logger.error(f"Error handling packet: {e}")
@@ -71,18 +71,16 @@ class PacketSniffer:
         """Start packet capture"""
         self.running = True
         
-        # Start packet processing worker
         self.worker_thread = threading.Thread(target=self.process_packets)
         self.worker_thread.daemon = True
         self.worker_thread.start()
         
         try:
-            # Start packet capture
             sniff(
                 prn=self.packet_handler,
                 store=False,
                 iface=self.interface,
-                filter="ip",  # Capture only IP packets
+                filter="ip",
             )
         except Exception as e:
             logger.error(f"Error in packet capture: {e}")

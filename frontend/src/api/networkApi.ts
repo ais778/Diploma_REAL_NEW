@@ -2,8 +2,7 @@ import axios from "axios";
 import api from "./axios"; // вместо import axios from "axios";
 const BASE_URL = api.defaults.baseURL; // можно убрать константу
 // const BASE_URL = "http://localhost:8000";
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 3000; // 3 seconds
+
 
 export interface QoSRule {
   protocol: string;
@@ -79,14 +78,14 @@ class NetworkApi {
   private listeners: Array<(data: any) => void> = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectTimeout = 1000; // 1 second
+  private reconnectTimeout = 1000;
   private messageHandlers: ((data: {
     packets: Packet[];
     metrics: NetworkMetrics;
   }) => void)[] = [];
 
   constructor() {
-    // Initialize axios with default config
+    // ожидание
     axios.defaults.baseURL = BASE_URL;
     axios.defaults.timeout = 5000;
     axios.defaults.headers.common["Content-Type"] = "application/json";
@@ -156,7 +155,7 @@ class NetworkApi {
     }
   }
 
-  // WebSocket connection for real-time updates
+  // WebSocket connection
   connectWebSocket(
     onMessage: (data: { packets: Packet[]; metrics: NetworkMetrics }) => void
   ) {
