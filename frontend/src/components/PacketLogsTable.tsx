@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import {
   Table,
   TableBody,
@@ -20,20 +26,26 @@ import {
   TextField,
   InputAdornment,
   Chip,
+  Alert,
   LinearProgress,
   Collapse,
+  Button,
   Menu,
   MenuItem,
   ListItemIcon,
   ListItemText,
 } from "@mui/material";
+import { FixedSizeList as List } from "react-window";
+import AutoSizer from "react-virtualized-auto-sizer";
 import InfoIcon from "@mui/icons-material/Info";
 import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import SortIcon from "@mui/icons-material/Sort";
 import DownloadIcon from "@mui/icons-material/Download";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 import { Packet } from "../api/networkApi";
 import debounce from "lodash/debounce";
 
@@ -71,7 +83,7 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
   // Дебаунс поиска
-  React.useEffect(() => {
+  useEffect(() => {
     const handler = debounce(() => {
       setDebouncedSearchQuery(searchQuery);
     }, 300);
@@ -161,50 +173,49 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
   }, [filteredPackets, getOptimizedSize]);
 
   const handleExportCSV = useCallback(() => {
-    // Выбери подходящий разделитель
-    // Для русской/казахской локали Excel чаще нужен ';'
-    const delimiter = ";";
-    const escapeCsvField = (field: string | number) => {
-      let value = String(field);
-      value = value.replace(/"/g, '""'); // Экранируем кавычки
-      return `"${value}"`; // Оборачиваем всегда
-    };
-  
     const headers = [
-      "Time", "Source", "Destination", "Protocol(s)", "Original Size", "Optimized Size", "Summary"
+      "Time",
+      "Source",
+      "Destination",
+      "Protocol",
+      "Size",
+      "Summary",
     ];
-  
     const csvContent = [
-      headers.map(escapeCsvField).join(delimiter),
+      headers.join(","),
       ...sortedPackets.map((pkt) =>
         [
           new Date(pkt.timestamp).toLocaleString(),
           pkt.src,
           pkt.dst,
-          pkt.protocols.join(", "), // если это массив, склей строкой
+          pkt.protocols.join(";"),
           pkt.length,
-          getOptimizedSize(pkt),
-          pkt.summary
-        ].map(escapeCsvField).join(delimiter)
+          pkt.summary,
+        ].join(",")
       ),
     ].join("\n");
-  
-    // Добавляем BOM для корректного открытия в Excel
-    const blob = new Blob(
-      ["\uFEFF" + csvContent],
-      { type: "text/csv;charset=utf-8;" }
-    );
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `packet-logs-${new Date().toISOString()}.csv`;
     link.click();
-  }, [sortedPackets, getOptimizedSize]);
-  
+  }, [sortedPackets]);
 
   // Ограничиваем количество отображаемых строк для производительности
   const visiblePackets = useMemo(() => {
     return sortedPackets.slice(0, 100); // Показываем только первые 100 строк
   }, [sortedPackets]);
+
+  const handleDisableAllOptimizations = useCallback(() => {
+    setSettings({
+      headerCompression: false,
+      contentCompression: false,
+      maliciousFilter: false,
+      trafficRouting: false,
+      caching: false,
+    });
+  }, []);
 
   return (
     <Card>
@@ -355,8 +366,7 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
             <FormGroup
               row
               sx={{
-                gap: 3,
-                flexWrap: "wrap",
+                gap: 1,
                 justifyContent: "flex-start",
                 mt: 1,
               }}
@@ -446,6 +456,31 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
                   </Box>
                 );
               })}
+              <Button
+                variant="contained"
+                onClick={handleDisableAllOptimizations}
+                sx={{
+                  backgroundColor: "rgba(255, 0, 0, 0.15)", // Light red background
+                  color: "error.main", // Red text color
+                  boxShadow: "0 0 6px rgba(255, 0, 0, 0.25)",
+                  "&:hover": {
+                    backgroundColor: "rgba(255, 0, 0, 0.25)",
+                    boxShadow: "0 0 8px rgba(255, 0, 0, 0.35)",
+                  },
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.5,
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <HighlightOffIcon fontSize="small" color="inherit" />
+                <Typography variant="body2" sx={{ userSelect: "none" }}>
+                  Disable All
+                </Typography>
+              </Button>
             </FormGroup>
           </Collapse>
         </Box>
@@ -471,7 +506,7 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
             <StatItem
               label="Savings"
               value={`${stats.savings.toLocaleString()} bytes (${stats.savingsPercentage.toFixed(
-                1
+                2
               )}%)`}
               color="success.main"
             />

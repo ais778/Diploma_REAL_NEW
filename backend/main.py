@@ -193,7 +193,7 @@ def packet_to_dict(pkt: Packet) -> dict:
             }
         return packet_dict
     except Exception as e:
-        print(f"❌ Error converting packet: {e}")
+        print(f" Error converting packet: {e}")
         return None
 
 @app.websocket("/ws/traffic")
@@ -267,18 +267,18 @@ async def traffic_ws(websocket: WebSocket):
                 break
     finally:
         active_connections.discard(websocket)
-        print(f"❌ Client disconnected: {websocket.client}")
+        print(f" Client disconnected: {websocket.client}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    print("🔄 Shutting down server...")
+    print("Shutting down server...")
     for connection in active_connections.copy():
         try:
             await connection.close()
         except Exception as e:
             print(f"Error closing connection: {e}")
     active_connections.clear()
-    print("✅ Server shutdown complete")
+    print(" Server shutdown complete")
 
 def choose_interface():
     print("Available network interfaces:")
@@ -297,16 +297,16 @@ def choose_interface():
             print(f"Invalid input: {e}")
 
 def start_sniff():
-    print("🚀 Starting network sniffer...")
+    print(" Starting network sniffer...")
     def packet_callback(pkt):
-        print(f"📥 Captured packet: {pkt.summary()}")
+        print(f" Captured packet: {pkt.summary()}")
         raw_packets.append(pkt)
     try:
         interface = choose_interface()
         print(f"Using interface: {interface}")
         start_sniffing(packet_callback, interface=interface)
     except Exception as e:
-        print(f"❌ Sniffer error: {e}")
+        print(f" Sniffer error: {e}")
 
 threading.Thread(target=start_sniff, daemon=True).start()
 
