@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -20,10 +20,8 @@ import {
   TextField,
   InputAdornment,
   Chip,
-  Alert,
   LinearProgress,
   Collapse,
-  Button,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -31,13 +29,13 @@ import {
 } from "@mui/material";
 import InfoIcon from "@mui/icons-material/Info";
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import SortIcon from "@mui/icons-material/Sort";
 import DownloadIcon from "@mui/icons-material/Download";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { Packet } from "../api/networkApi";
+import debounce from "lodash/debounce";
 
 interface Props {
   packets: Packet[];
@@ -64,42 +62,51 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
   });
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(true);
   const [sortField, setSortField] = useState<SortField>("time");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [sortMenuAnchor, setSortMenuAnchor] = useState<null | HTMLElement>(
     null
   );
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
-  const handleSettingChange = (setting: keyof OptimizationSettings) => {
-    setSettings((prev) => ({
-      ...prev,
-      [setting]: !prev[setting],
-    }));
-  };
+  // Дебаунс поиска
+  React.useEffect(() => {
+    const handler = debounce(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
 
-  const getOptimizedSize = (pkt: Packet): number => {
-    let size = pkt.length;
-    if (settings.headerCompression) size = Math.round(size * 0.95);
-    if (settings.contentCompression) size = Math.round(size * 0.85);
-    if (settings.caching) size = Math.round(size * 0.9);
-    return size;
-  };
+    handler();
+    return () => handler.cancel();
+  }, [searchQuery]);
+
+  const handleSettingChange = useCallback(
+    (setting: keyof OptimizationSettings) => {
+      setSettings((prev) => ({
+        ...prev,
+        [setting]: !prev[setting],
+      }));
+    },
+    []
+  );
+
+  const getOptimizedSize = useCallback(
+    (pkt: Packet): number => {
+      let size = pkt.length;
+      if (settings.headerCompression) size = Math.round(size * 0.95);
+      if (settings.contentCompression) size = Math.round(size * 0.85);
+      if (settings.caching) size = Math.round(size * 0.9);
+      return size;
+    },
+    [settings]
+  );
 
   // Фильтруем пакеты один раз
   const filteredPackets = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = debouncedSearchQuery.toLowerCase().trim();
 
     return packets.filter((pkt) => {
-      // Малишес фильтр
       if (settings.maliciousFilter && pkt.length > 1500) return false;
-
-      // Фильтр по протоколу
-      if (selectedProtocol && !pkt.protocols.includes(selectedProtocol))
-        return false;
-
-      // Поиск по тексту
       if (q) {
         const match =
           pkt.src.toLowerCase().includes(q) ||
@@ -108,10 +115,9 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
           pkt.summary.toLowerCase().includes(q);
         if (!match) return false;
       }
-
       return true;
     });
-  }, [packets, settings.maliciousFilter, searchQuery, selectedProtocol]);
+  }, [packets, settings.maliciousFilter, debouncedSearchQuery]);
 
   // Сортируем пакеты
   const sortedPackets = useMemo(() => {
@@ -152,44 +158,53 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
       savings,
       savingsPercentage,
     };
-  }, [filteredPackets]);
+  }, [filteredPackets, getOptimizedSize]);
 
-  // Уникальные протоколы
-  const uniqueProtocols = useMemo(() => {
-    const protocols = new Set<string>();
-    packets.forEach((pkt) => pkt.protocols.forEach((p) => protocols.add(p)));
-    return Array.from(protocols).sort();
-  }, [packets]);
-
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
+    // Выбери подходящий разделитель
+    // Для русской/казахской локали Excel чаще нужен ';'
+    const delimiter = ";";
+    const escapeCsvField = (field: string | number) => {
+      let value = String(field);
+      value = value.replace(/"/g, '""'); // Экранируем кавычки
+      return `"${value}"`; // Оборачиваем всегда
+    };
+  
     const headers = [
-      "Time",
-      "Source",
-      "Destination",
-      "Protocol",
-      "Size",
-      "Summary",
+      "Time", "Source", "Destination", "Protocol(s)", "Original Size", "Optimized Size", "Summary"
     ];
+  
     const csvContent = [
-      headers.join(","),
+      headers.map(escapeCsvField).join(delimiter),
       ...sortedPackets.map((pkt) =>
         [
           new Date(pkt.timestamp).toLocaleString(),
           pkt.src,
           pkt.dst,
-          pkt.protocols.join(";"),
+          pkt.protocols.join(", "), // если это массив, склей строкой
           pkt.length,
-          pkt.summary,
-        ].join(",")
+          getOptimizedSize(pkt),
+          pkt.summary
+        ].map(escapeCsvField).join(delimiter)
       ),
     ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  
+    // Добавляем BOM для корректного открытия в Excel
+    const blob = new Blob(
+      ["\uFEFF" + csvContent],
+      { type: "text/csv;charset=utf-8;" }
+    );
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `packet-logs-${new Date().toISOString()}.csv`;
     link.click();
-  };
+  }, [sortedPackets, getOptimizedSize]);
+  
+
+  // Ограничиваем количество отображаемых строк для производительности
+  const visiblePackets = useMemo(() => {
+    return sortedPackets.slice(0, 100); // Показываем только первые 100 строк
+  }, [sortedPackets]);
 
   return (
     <Card>
@@ -309,19 +324,6 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
                 )}
               </MenuItem>
             </Menu>
-            <Tooltip title="Clear protocol filter">
-              <span>
-                <IconButton
-                  size="small"
-                  color={selectedProtocol ? "primary" : "default"}
-                  disabled={!selectedProtocol}
-                  onClick={() => setSelectedProtocol(null)}
-                  aria-label="Clear protocol filter"
-                >
-                  <FilterListIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
             <Tooltip title="Export to CSV">
               <IconButton
                 size="small"
@@ -333,24 +335,6 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
             </Tooltip>
           </Box>
         </Box>
-
-        {selectedProtocol && (
-          <Alert
-            severity="info"
-            sx={{ mb: 2, display: "flex", alignItems: "center" }}
-            action={
-              <IconButton
-                size="small"
-                aria-label="Clear protocol filter"
-                onClick={() => setSelectedProtocol(null)}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
-            }
-          >
-            Filtering by protocol: <strong>{selectedProtocol}</strong>
-          </Alert>
-        )}
 
         <Box sx={{ mb: 2 }}>
           <Box
@@ -468,26 +452,6 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
 
         <Box sx={{ mb: 2 }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Protocol Filter
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            {uniqueProtocols.map((protocol) => (
-              <Chip
-                key={protocol}
-                label={protocol}
-                onClick={() => setSelectedProtocol(protocol)}
-                color={selectedProtocol === protocol ? "primary" : "default"}
-                variant={selectedProtocol === protocol ? "filled" : "outlined"}
-                sx={{ cursor: "pointer" }}
-                aria-pressed={selectedProtocol === protocol}
-                aria-label={`Filter by protocol ${protocol}`}
-              />
-            ))}
-          </Box>
-        </Box>
-
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             Optimization Statistics
           </Typography>
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -544,14 +508,14 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedPackets.length === 0 ? (
+              {visiblePackets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                     No packets found matching the criteria.
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedPackets.map((pkt, idx) => {
+                visiblePackets.map((pkt, idx) => {
                   const optimizedSize = getOptimizedSize(pkt);
                   return (
                     <TableRow key={idx} hover tabIndex={-1}>
@@ -570,9 +534,7 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
                               label={protocol}
                               size="small"
                               variant="outlined"
-                              onClick={() => setSelectedProtocol(protocol)}
-                              sx={{ cursor: "pointer" }}
-                              aria-label={`Filter by protocol ${protocol}`}
+                              sx={{ cursor: "default" }}
                             />
                           ))}
                         </Box>
@@ -587,6 +549,15 @@ const PacketLogsTable: React.FC<Props> = ({ packets }) => {
                     </TableRow>
                   );
                 })
+              )}
+              {sortedPackets.length > 100 && (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Showing first 100 of {sortedPackets.length} packets
+                    </Typography>
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
@@ -613,4 +584,4 @@ const StatItem: React.FC<StatItemProps> = ({ label, value, color }) => (
   </Box>
 );
 
-export default PacketLogsTable;
+export default React.memo(PacketLogsTable);
