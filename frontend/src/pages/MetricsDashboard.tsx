@@ -9,6 +9,7 @@ import BandwidthUtilizationChart, {
   BandwidthPoint,
 } from "../components/BandwidthUtilization";
 import SummaryStatistics from "../components/SummaryStatistics";
+import PacketLogsTable from "../components/PacketLogsTable";
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
 const MetricsDashboard: React.FC = () => {
@@ -124,6 +125,10 @@ const MetricsDashboard: React.FC = () => {
 
         <Grid item xs={12}>
           <PacketSizeTrend data={trendData} showComparison={showComparison} />
+        </Grid>
+
+        <Grid item xs={12}>
+          <PacketLogsTable packets={packets} />
         </Grid>
 
         <Grid item xs={12} md={6}>

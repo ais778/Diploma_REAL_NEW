@@ -7,26 +7,22 @@ import numpy as np
 
 class NetworkMetricsCollector:
     def __init__(self):
-        # Prometheus metrics
         self.packets_total = Counter('network_packets_total', 'Total number of packets', ['protocol'])
         self.bandwidth_usage = Gauge('network_bandwidth_bytes', 'Current bandwidth usage in bytes', ['protocol'])
         self.latency_hist = Histogram('network_latency_seconds', 'Network latency in seconds')
 
-        # Internal metrics storage
         self.metrics_history = defaultdict(list)  # оригинальные
         self.optimized_history = defaultdict(list)  # оптимизированные
         self.start_time = time.time()
-        self.optimized_start_time = None  # когда пошли первые оптимизированные пакеты
+        self.optimized_start_time = None  
 
     def record_packet(self, packet: Dict, optimized: bool = False):
         """Record metrics for a single packet. If optimized=True, save in optimized_history."""
         packet_size = packet.get("length", 0)
         protocols = packet.get("protocols", [])
         
-        # Создаем уникальный идентификатор пакета
         packet_id = f"{packet.get('src', '')}-{packet.get('dst', '')}-{packet.get('timestamp', '')}"
         
-        # Увеличиваем счетчики только для уникальных пакетов
         for protocol in protocols:
             # Для Ethernet и IP считаем только уникальные пакеты
             if protocol in ["Ethernet", "IP"]:
@@ -76,7 +72,7 @@ class NetworkMetricsCollector:
                 "std_packet_size": float(np.std(packet_sizes)),
                 "throughput": float(np.sum(packet_sizes) / (timestamps[-1] - timestamps[0])) if len(timestamps) > 1 else 0,
             })
-            # Protocol distribution
+          
             protocol_counts = pd.Series(self.metrics_history["protocols"]).value_counts()
             stats["protocol_distribution"] = protocol_counts.to_dict()
             # average
@@ -98,13 +94,9 @@ class NetworkMetricsCollector:
                 "protocol_distribution": {},
                 "moving_avg_size": 0
             })
-
-        # оптимизированные - показываем прогнозируемые улучшения
         if packet_sizes.size > 0:
-            # Прогнозируем улучшение размера пакетов на 20%
-            optimized_size = packet_sizes * 0.8  # уменьшаем размер на 20%
-            # Прогнозируем улучшение пропускной способности на 30%
-            optimized_throughput = stats["original_throughput"] * 1.3  # увеличиваем на 30%
+            optimized_size = packet_sizes * 0.8 
+            optimized_throughput = stats["original_throughput"] * 1.3  
             
             stats.update({
                 "optimized_avg_size": float(np.mean(optimized_size)),
